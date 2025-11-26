@@ -179,8 +179,8 @@
     <div class="section-title">🌄 Background</div>
     <div class="control-group">
       <label>Scroll Speed</label>
-      <input type="range" id="bgSpeed" min="0.01" max="0.5" step="0.005" value="0.255">
-      <span class="value" id="bgSpeedVal">0.255</span>
+      <input type="range" id="bgSpeed" min="0.01" max="0.5" step="0.005" value="0.36">
+      <span class="value" id="bgSpeedVal">0.36</span>
     </div>
     <div class="control-group">
       <label>Ground Level %</label>
@@ -254,6 +254,31 @@
     </div>
   </div>
 
+  <!-- Bee Controls -->
+  <div class="section">
+    <div class="section-title">🐝 Bees</div>
+    <div class="control-group">
+      <label>Scale</label>
+      <input type="range" id="beeScale" min="0.01" max="0.2" step="0.005" value="0.025">
+      <span class="value" id="beeScaleVal">0.025</span>
+    </div>
+  </div>
+
+  <!-- Score Controls -->
+  <div class="section">
+    <div class="section-title">🏆 Score</div>
+    <div class="control-group">
+      <label>X Position</label>
+      <input type="range" id="scoreX" min="0" max="1000" step="5" value="900">
+      <span class="value" id="scoreXVal">900</span>
+    </div>
+    <div class="control-group">
+      <label>Y Position</label>
+      <input type="range" id="scoreY" min="0" max="500" step="5" value="12">
+      <span class="value" id="scoreYVal">12</span>
+    </div>
+  </div>
+
   <!-- Config Display -->
   <div id="config-display">
     <div class="title">📋 Current Config (copy me!)</div>
@@ -267,7 +292,8 @@
       function setupPopupControls(popup) {
         const sliderIds = [
           'bgSpeed', 'moveSpeed', 'gravitySpeed', 'animFps', 'birdScale',
-          'maxTilt', 'groundLevel', 'patriotX', 'patriotY', 'budgieScale', 'budgieSpacing', 'budgieX', 'budgieY'
+          'maxTilt', 'groundLevel', 'patriotX', 'patriotY', 'budgieScale', 'budgieSpacing', 'budgieX', 'budgieY',
+          'beeScale', 'scoreX', 'scoreY'
         ];
         
         // Wait for game config to be available
@@ -324,6 +350,9 @@
   budgieSpacing: ${config.budgieSpacing},
   budgieX: ${config.budgieX},
   budgieY: ${config.budgieY},
+  beeScale: ${config.beeScale},
+  scoreX: ${config.scoreX},
+  scoreY: ${config.scoreY},
 }`;
         const el = popup.document.getElementById('config-text');
         if (el) el.textContent = text;

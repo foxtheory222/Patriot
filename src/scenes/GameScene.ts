@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 // Debug config - read from HTML sliders
 const debugConfig = {
-  bgSpeed: 0.255,
+  bgSpeed: 0.36,
   moveSpeed: 280,
   gravitySpeed: 110,
   animFps: 13,
@@ -15,6 +15,9 @@ const debugConfig = {
   budgieSpacing: 125,
   budgieX: 60,
   budgieY: 0.4,
+  beeScale: 0.025,
+  scoreX: 900,
+  scoreY: 12,
 };
 
 // Day / night / weather states
@@ -57,6 +60,7 @@ export default class GameScene extends Phaser.Scene {
   private bees!: Phaser.Physics.Arcade.Group;
   private score = 0;
   private scoreText!: Phaser.GameObjects.Text;
+  private beeSpeed = 200;
 
   constructor() {
     super('GameScene');
@@ -190,9 +194,9 @@ export default class GameScene extends Phaser.Scene {
       stateTimer: 0,
 
       // Slightly shorter durations to make the cycle visible faster during dev
-      dayDuration: Phaser.Math.Between(20000, 30000),
-      duskDuration: 5000,
-      nightDuration: 12000,
+      dayDuration: Phaser.Math.Between(40000, 60000),
+      duskDuration: 15000,
+      nightDuration: 20000,
       stormDuration: 12000,
       dawnDuration: 5000,
 
@@ -224,7 +228,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Score UI
     this.scoreText = this.add
-      .text(12, 12, 'Score: 0', {
+      .text(debugConfig.scoreX, debugConfig.scoreY, 'Score: 0', {
         fontFamily: 'Arial',
         fontSize: '16px',
         color: '#ffffff',
@@ -345,12 +349,18 @@ export default class GameScene extends Phaser.Scene {
       budgie.setScale(debugConfig.budgieScale);
     }
 
+    // Update score position
+    if (this.scoreText) {
+      this.scoreText.setPosition(debugConfig.scoreX, debugConfig.scoreY);
+    }
+
     // Weather
     this.updateWeather(delta);
 
     // Cull bees that move off-screen
     this.bees.children.each((child) => {
       const bee = child as Phaser.Physics.Arcade.Sprite;
+      bee.setScale(debugConfig.beeScale); // Update scale dynamically
       if (bee.x < -100) {
         bee.destroy();
       }
@@ -448,7 +458,7 @@ export default class GameScene extends Phaser.Scene {
           // Back to day; randomize next day a bit
           w.state = 'day';
           w.stateTimer = 0;
-          w.dayDuration = Phaser.Math.Between(15000, 25000);
+          w.dayDuration = Phaser.Math.Between(40000, 60000);
           w.rainIntensity = 0;
           this.clearRain();
           this.setOverlay(0, this.overlayBaseColor);
@@ -545,8 +555,11 @@ export default class GameScene extends Phaser.Scene {
   private spawnBee(): void {
     if (this.budgies.length === 0) return;
 
+    const { width } = this.scale;
     const targetBudgie = Phaser.Utils.Array.GetRandom(this.budgies);
-    const spawnX = targetBudgie.x + Phaser.Math.Between(160, 240);
+    
+    // Spawn off-screen right
+    const spawnX = width + 50;
     const spawnY = targetBudgie.y;
 
     const bee = this.bees.get(spawnX, spawnY, 'bee_1') as Phaser.Physics.Arcade.Sprite | null;
@@ -554,10 +567,16 @@ export default class GameScene extends Phaser.Scene {
 
     bee.setActive(true);
     bee.setVisible(true);
-    bee.setScale(0.08);
+    bee.setScale(debugConfig.beeScale);
+    bee.setFlipX(true); // Flip to face left
     bee.setDepth(60);
     bee.play('bee_fly');
-    bee.setVelocityX(-120);
+    
+    // Move left towards budgies, speeding up over time
+    bee.setVelocityX(-this.beeSpeed);
+    
+    // Increase speed for next spawn (cap at 800)
+    this.beeSpeed = Math.min(this.beeSpeed + 10, 800);
   }
 
   private incrementScore(amount: number): void {

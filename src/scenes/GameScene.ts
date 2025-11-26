@@ -53,8 +53,10 @@ export default class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private weather!: WeatherSystem;
-  private stateLabel!: Phaser.GameObjects.Text;
   private overlayBaseColor = 0x0c1024; // base purple tone for day reset
+  private bees!: Phaser.Physics.Arcade.Group;
+  private score = 0;
+  private scoreText!: Phaser.GameObjects.Text;
 
   constructor() {
     super('GameScene');
@@ -80,6 +82,10 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('budgie_fly_2', 'assets/budgie/frame-2.png');
     this.load.image('budgie_fly_3', 'assets/budgie/frame-3.png');
     this.load.image('budgie_fly_4', 'assets/budgie/frame-4.png');
+
+    // Bee frames
+    this.load.image('bee_1', 'assets/Bee/frame-1.png');
+    this.load.image('bee_2', 'assets/Bee/frame-2.png');
   }
 
   create(): void {
@@ -116,6 +122,17 @@ export default class GameScene extends Phaser.Scene {
         { key: 'budgie_fly_4' },
       ],
       frameRate: debugConfig.animFps,
+      repeat: -1,
+    });
+
+    // === Bee animation ===
+    this.anims.create({
+      key: 'bee_fly',
+      frames: [
+        { key: 'bee_1' },
+        { key: 'bee_2' },
+      ],
+      frameRate: 8,
       repeat: -1,
     });
 
@@ -191,16 +208,36 @@ export default class GameScene extends Phaser.Scene {
 
     // Allow HTML "Night" button to poke the state machine
     (window as any).triggerNightMode = () => this.triggerNightMode();
+    
+    // Bees group
+    this.bees = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Sprite,
+      runChildUpdate: false,
+    });
 
-    // Simple debug state label
-    this.stateLabel = this.add
-      .text(12, 12, 'state: day', {
+    // Overlap: budgies eat bees, score increases
+    this.physics.add.overlap(this.budgies, this.bees, (_budgie, bee) => {
+      const beeSprite = bee as Phaser.Physics.Arcade.Sprite;
+      beeSprite.destroy();
+      this.incrementScore(10);
+    });
+
+    // Score UI
+    this.scoreText = this.add
+      .text(12, 12, 'Score: 0', {
         fontFamily: 'Arial',
-        fontSize: '14px',
+        fontSize: '16px',
         color: '#ffffff',
       })
       .setDepth(150)
       .setScrollFactor(0);
+
+    // Spawn bees periodically in front of random budgies
+    this.time.addEvent({
+      delay: 2500,
+      loop: true,
+      callback: () => this.spawnBee(),
+    });
   }
 
   private triggerNightMode(): void {
@@ -311,12 +348,14 @@ export default class GameScene extends Phaser.Scene {
     // Weather
     this.updateWeather(delta);
 
-    // Debug label
-    if (this.stateLabel) {
-      this.stateLabel.setText(
-        `state: ${this.weather.state}\ndark: ${this.weather.darkness.toFixed(2)}\nrain: ${this.weather.rainIntensity.toFixed(2)}`
-      );
-    }
+    // Cull bees that move off-screen
+    this.bees.children.each((child) => {
+      const bee = child as Phaser.Physics.Arcade.Sprite;
+      if (bee.x < -100) {
+        bee.destroy();
+      }
+      return true;
+    });
   }
 
   private updateWeather(delta: number): void {
@@ -501,5 +540,30 @@ export default class GameScene extends Phaser.Scene {
   private setOverlay(alpha: number, color: number): void {
     this.nightOverlay.setFillStyle(color, alpha);
     this.nightOverlay.setAlpha(alpha);
+  }
+
+  private spawnBee(): void {
+    if (this.budgies.length === 0) return;
+
+    const targetBudgie = Phaser.Utils.Array.GetRandom(this.budgies);
+    const spawnX = targetBudgie.x + Phaser.Math.Between(160, 240);
+    const spawnY = targetBudgie.y;
+
+    const bee = this.bees.get(spawnX, spawnY, 'bee_1') as Phaser.Physics.Arcade.Sprite | null;
+    if (!bee) return;
+
+    bee.setActive(true);
+    bee.setVisible(true);
+    bee.setScale(0.08);
+    bee.setDepth(60);
+    bee.play('bee_fly');
+    bee.setVelocityX(-120);
+  }
+
+  private incrementScore(amount: number): void {
+    this.score += amount;
+    if (this.scoreText) {
+      this.scoreText.setText(`Score: ${this.score}`);
+    }
   }
 }

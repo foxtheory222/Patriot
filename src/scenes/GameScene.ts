@@ -10,28 +10,37 @@ const debugConfig = {
   maxTilt: 9,
   groundLevel: 0.85,
   patriotX: 200,
-  patriotY: 0.5,
+  patriotY: 0.4,
   budgieScale: 0.02,
   budgieSpacing: 125,
   budgieX: 60,
   budgieY: 0.4,
 };
 
-// Weather states
-type WeatherState = 'day' | 'transition-to-night' | 'night' | 'storm' | 'transition-to-day';
+// Day / night / weather states
+type WeatherState = 'day' | 'dusk' | 'night' | 'storm' | 'dawn';
 
 interface WeatherSystem {
   state: WeatherState;
   stateTimer: number;
+
   dayDuration: number;
+  duskDuration: number;
   nightDuration: number;
-  transitionDuration: number;
   stormDuration: number;
+  dawnDuration: number;
+
+  // Darkness overlay (0 = day, ~0.7 = night)
   darkness: number;
+  overlay: Phaser.GameObjects.Rectangle;
+
+  // Rain
   rainDrops: Phaser.GameObjects.Line[];
-  lightningFlash: Phaser.GameObjects.Rectangle | null;
-  nextLightning: number;
-  rainIntensity: number;
+  rainIntensity: number; // 0..1
+
+  // Lightning
+  lightningFlash: Phaser.GameObjects.Rectangle;
+  nextLightning: number; // ms until next flash
 }
 
 // Expose to window for HTML controls
@@ -44,6 +53,8 @@ export default class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private weather!: WeatherSystem;
+  private stateLabel!: Phaser.GameObjects.Text;
+  private overlayBaseColor = 0x0c1024; // base purple tone for day reset
 
   constructor() {
     super('GameScene');
@@ -146,62 +157,78 @@ export default class GameScene extends Phaser.Scene {
       this.player.setData('targetDirection', 0);
     });
 
-    // HUD text
-    this.add.text(width / 2, 40, 'PATRIOT', {
-      fontFamily: 'Arial',
-      fontSize: '32px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    this.add.text(width / 2, 80, 'Tap to fly!', {
-      fontFamily: 'Arial',
-      fontSize: '16px',
-      color: '#ffffff',
-    }).setOrigin(0.5);
-
-    // === Night overlay ===
-    this.nightOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x0a1628, 0);
+    // === Night / weather overlay ===
+    this.nightOverlay = this.add.rectangle(width / 2, height / 2, width, height, this.overlayBaseColor, 0);
     this.nightOverlay.setDepth(100);
+    this.nightOverlay.setScrollFactor(0);
 
-    // === Weather system ===
+    // Lightning flash overlay (yellow, initially invisible)
+    const lightningFlash = this.add.rectangle(width / 2, height / 2, width, height, 0xfff199, 0);
+    lightningFlash.setDepth(101);
+    lightningFlash.setScrollFactor(0);
+
+    // === Weather system initialization ===
     this.weather = {
       state: 'day',
       stateTimer: 0,
-      dayDuration: Phaser.Math.Between(30000, 60000),
-      nightDuration: 10000,
-      transitionDuration: 3000,
+
+      // Slightly shorter durations to make the cycle visible faster during dev
+      dayDuration: Phaser.Math.Between(20000, 30000),
+      duskDuration: 5000,
+      nightDuration: 12000,
       stormDuration: 12000,
+      dawnDuration: 5000,
+
       darkness: 0,
+      overlay: this.nightOverlay,
+
       rainDrops: [],
-      lightningFlash: null,
-      nextLightning: 0,
       rainIntensity: 0,
+
+      lightningFlash,
+      nextLightning: 0,
     };
 
-    this.weather.lightningFlash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 0);
-    this.weather.lightningFlash.setDepth(101);
-
-    // Expose night mode trigger
+    // Allow HTML "Night" button to poke the state machine
     (window as any).triggerNightMode = () => this.triggerNightMode();
+
+    // Simple debug state label
+    this.stateLabel = this.add
+      .text(12, 12, 'state: day', {
+        fontFamily: 'Arial',
+        fontSize: '14px',
+        color: '#ffffff',
+      })
+      .setDepth(150)
+      .setScrollFactor(0);
   }
 
   private triggerNightMode(): void {
     const w = this.weather;
-    if (w.state === 'day') {
-      w.state = 'transition-to-night';
-      w.stateTimer = 0;
-      console.log('🌙 Transitioning to night...');
-    } else if (w.state === 'night' || w.state === 'storm') {
-      w.state = 'transition-to-day';
-      w.stateTimer = 0;
-      console.log('☀️ Transitioning to day...');
-    } else if (w.state === 'transition-to-night') {
-      w.state = 'storm';
-      w.stateTimer = 0;
-      w.darkness = 0.7;
-      w.nextLightning = 500;
-      this.nightOverlay.setAlpha(0.7);
-      console.log('⛈️ Storm!');
+
+    // Manual override from HTML button:
+    // - If we're in day or dawn => skip to dusk
+    // - If we're already in night or storm => go to dawn
+    // - If we're in dusk => jump straight into storm
+    switch (w.state) {
+      case 'day':
+      case 'dawn':
+        w.state = 'dusk';
+        w.stateTimer = 0;
+        break;
+
+      case 'dusk':
+        w.state = 'storm';
+        w.stateTimer = 0;
+        w.rainIntensity = 0.5;
+        w.nextLightning = 500;
+        break;
+
+      case 'night':
+      case 'storm':
+        w.state = 'dawn';
+        w.stateTimer = 0;
+        break;
     }
   }
 
@@ -282,88 +309,133 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Weather
-    this.updateWeather(delta, width, height);
+    this.updateWeather(delta);
+
+    // Debug label
+    if (this.stateLabel) {
+      this.stateLabel.setText(
+        `state: ${this.weather.state}\ndark: ${this.weather.darkness.toFixed(2)}\nrain: ${this.weather.rainIntensity.toFixed(2)}`
+      );
+    }
   }
 
-  private updateWeather(delta: number, width: number, height: number): void {
+  private updateWeather(delta: number): void {
     const w = this.weather;
+    const { width, height } = this.scale;
+
     w.stateTimer += delta;
 
     switch (w.state) {
-      case 'day':
+      case 'day': {
+        // Reset any lingering darkness
+        w.darkness = 0;
+        this.setOverlay(0, this.overlayBaseColor);
+
         if (w.stateTimer >= w.dayDuration) {
-          w.state = 'transition-to-night';
+          w.state = 'dusk';
           w.stateTimer = 0;
         }
         break;
+      }
 
-      case 'transition-to-night':
-        const nightProgress = Math.min(w.stateTimer / w.transitionDuration, 1);
-        w.darkness = nightProgress * 0.7;
-        this.nightOverlay.setAlpha(w.darkness);
-        if (w.stateTimer >= w.transitionDuration) {
+      case 'dusk': {
+        const t = Phaser.Math.Clamp(w.stateTimer / w.duskDuration, 0, 1);
+        w.darkness = Phaser.Math.Linear(0, 0.65, t);
+        // Purple tint for dusk
+        this.setOverlay(w.darkness, 0x1a1240);
+
+        if (w.stateTimer >= w.duskDuration) {
           w.state = 'night';
           w.stateTimer = 0;
         }
         break;
+      }
 
-      case 'night':
+      case 'night': {
+        // Keep it dark; after nightDuration, start a storm
+        w.darkness = 0.9;
+        // Deep purple night
+        this.setOverlay(w.darkness, 0x0a0622);
+
         if (w.stateTimer >= w.nightDuration) {
           w.state = 'storm';
           w.stateTimer = 0;
+          w.rainIntensity = 0;
           w.nextLightning = Phaser.Math.Between(500, 2000);
         }
         break;
+      }
 
-      case 'storm':
-        w.rainIntensity = Math.min(w.stateTimer / 2000, 1);
+      case 'storm': {
+        // Ramp up rain over first 2 seconds
+        const ramp = Phaser.Math.Clamp(w.stateTimer / 2000, 0, 1);
+        w.rainIntensity = ramp;
+
         this.updateRain(delta, width, height);
         this.updateLightning(delta);
+
+        // Keep it quite dark during storms with a purple cast
+        this.setOverlay(Math.max(w.darkness, 0.8), 0x09071b);
+
         if (w.stateTimer >= w.stormDuration) {
-          w.state = 'transition-to-day';
+          w.state = 'dawn';
           w.stateTimer = 0;
         }
         break;
+      }
 
-      case 'transition-to-day':
-        const dayProgress = Math.min(w.stateTimer / w.transitionDuration, 1);
-        w.darkness = 0.7 * (1 - dayProgress);
-        w.rainIntensity = 1 - dayProgress;
-        this.nightOverlay.setAlpha(w.darkness);
+      case 'dawn': {
+        // Fade rain and darkness out with a warm-to-neutral tint
+        const t = Phaser.Math.Clamp(w.stateTimer / w.dawnDuration, 0, 1);
+        w.darkness = Phaser.Math.Linear(0.65, 0.08, t);
+        // Slightly warm purple dawn
+        this.setOverlay(w.darkness, 0x2a183b);
+
+        // Rain intensity goes down to zero
+        w.rainIntensity = Phaser.Math.Linear(1, 0, t);
         this.updateRain(delta, width, height);
-        if (w.stateTimer >= w.transitionDuration) {
+
+        if (w.stateTimer >= w.dawnDuration) {
+          // Back to day; reset some durations for variety
           w.state = 'day';
           w.stateTimer = 0;
-          w.dayDuration = Phaser.Math.Between(30000, 60000);
+          w.dayDuration = Phaser.Math.Between(12000, 18000);
+          w.rainIntensity = 0;
           this.clearRain();
+          this.setOverlay(0, this.overlayBaseColor);
         }
         break;
+      }
     }
   }
 
   private updateRain(_delta: number, width: number, height: number): void {
     const w = this.weather;
-    const targetDrops = Math.floor(w.rainIntensity * 150);
+    const targetDrops = Math.floor(150 * w.rainIntensity);
 
+    // Add drops until we reach target
     while (w.rainDrops.length < targetDrops) {
       const x = Phaser.Math.Between(0, width);
       const y = Phaser.Math.Between(-50, 0);
-      const drop = this.add.line(0, 0, x, y, x - 3, y + 20, 0xaaccff, 0.5);
+      const drop = this.add.line(0, 0, x, y, x - 3, y + 18, 0xaaccff, 0.6);
       drop.setLineWidth(1);
       drop.setDepth(102);
       drop.setData('speed', Phaser.Math.Between(600, 1000));
       w.rainDrops.push(drop);
     }
 
+    // Remove extra drops if intensity went down
     while (w.rainDrops.length > targetDrops) {
       const drop = w.rainDrops.pop();
       if (drop) drop.destroy();
     }
 
+    // Move existing drops
     for (const drop of w.rainDrops) {
       const speed = drop.getData('speed') as number;
       const geom = drop.geom as Phaser.Geom.Line;
       const dy = speed * 0.016;
+
       geom.y1 += dy;
       geom.y2 += dy;
       geom.x1 -= dy * 0.1;
@@ -373,8 +445,9 @@ export default class GameScene extends Phaser.Scene {
         geom.x1 = Phaser.Math.Between(0, width);
         geom.y1 = Phaser.Math.Between(-50, 0);
         geom.x2 = geom.x1 - 3;
-        geom.y2 = geom.y1 + 20;
+        geom.y2 = geom.y1 + 18;
       }
+
       drop.setTo(geom.x1, geom.y1, geom.x2, geom.y2);
     }
   }
@@ -393,20 +466,29 @@ export default class GameScene extends Phaser.Scene {
     const flash = this.weather.lightningFlash;
     if (!flash) return;
 
+    flash.setFillStyle(0xfff199, 1);
+
+    // Two quick yellow flashes
     this.tweens.add({
       targets: flash,
-      alpha: { from: 0.8, to: 0 },
-      duration: 60,
+      alpha: { from: 1, to: 0 },
+      duration: 100,
       yoyo: true,
-      repeat: 1,
+      repeat: 2, // total three pulses (initial + 2 repeats)
       onComplete: () => flash.setAlpha(0),
     });
   }
 
   private clearRain(): void {
-    for (const drop of this.weather.rainDrops) {
+    const w = this.weather;
+    for (const drop of w.rainDrops) {
       drop.destroy();
     }
-    this.weather.rainDrops = [];
+    w.rainDrops = [];
+  }
+
+  private setOverlay(alpha: number, color: number): void {
+    this.nightOverlay.setFillStyle(color, alpha);
+    this.nightOverlay.setAlpha(alpha);
   }
 }

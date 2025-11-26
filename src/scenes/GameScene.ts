@@ -27,7 +27,7 @@ interface WeatherSystem {
   nightDuration: number;
   transitionDuration: number;
   stormDuration: number;
-  darkness: number; // 0 = day, 1 = full night
+  darkness: number;
   rainDrops: Phaser.GameObjects.Line[];
   lightningFlash: Phaser.GameObjects.Rectangle | null;
   nextLightning: number;
@@ -37,51 +37,6 @@ interface WeatherSystem {
 // Expose to window for HTML controls
 (window as any).gameConfig = debugConfig;
 
-// Setup slider listeners
-function setupDebugControls() {
-  const sliders = [
-    { id: 'bgSpeed', key: 'bgSpeed' },
-    { id: 'moveSpeed', key: 'moveSpeed' },
-    { id: 'gravitySpeed', key: 'gravitySpeed' },
-    { id: 'animFps', key: 'animFps' },
-    { id: 'birdScale', key: 'birdScale' },
-    { id: 'maxTilt', key: 'maxTilt' },
-    { id: 'groundLevel', key: 'groundLevel' },
-    { id: 'patriotX', key: 'patriotX' },
-    { id: 'patriotY', key: 'patriotY' },
-    { id: 'budgieScale', key: 'budgieScale' },
-    { id: 'budgieSpacing', key: 'budgieSpacing' },
-    { id: 'budgieX', key: 'budgieX' },
-    { id: 'budgieY', key: 'budgieY' },
-  ];
-
-  sliders.forEach(({ id, key }) => {
-    const slider = document.getElementById(id) as HTMLInputElement;
-    const valDisplay = document.getElementById(`${id}Val`);
-    if (slider && valDisplay) {
-      slider.addEventListener('input', () => {
-        const val = parseFloat(slider.value);
-        (debugConfig as any)[key] = val;
-        valDisplay.textContent = val.toString();
-      });
-    }
-  });
-}
-
-// Run setup when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupDebugControls);
-} else {
-  setupDebugControls();
-}
-
-/**
- * GameScene
- * ---------
- * - 6-layer parallax background
- * - Red eagle with live-adjustable parameters
- * - Touch upper half = rise, touch lower half = fall, release = gravitate to middle
- */
 export default class GameScene extends Phaser.Scene {
   private bgLayers: Phaser.GameObjects.TileSprite[] = [];
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -89,40 +44,38 @@ export default class GameScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
   private weather!: WeatherSystem;
-  private isPlayerControlled: boolean = false;
 
   constructor() {
     super('GameScene');
   }
 
   preload(): void {
-    // Load backgrounds - layer-1 is farthest (sky), layer-6 is nearest (ground)
-    this.load.image('bg1', 'Assets/backgrounds/layer-1.png');
-    this.load.image('bg2', 'Assets/backgrounds/layer-2.png');
-    this.load.image('bg3', 'Assets/backgrounds/layer-3.png');
-    this.load.image('bg4', 'Assets/backgrounds/layer-4.png');
-    this.load.image('bg5', 'Assets/backgrounds/layer-5.png');
-    this.load.image('bg6', 'Assets/backgrounds/layer-6.png');
+    // Load backgrounds
+    this.load.image('bg1', 'assets/backgrounds/layer-1.png');
+    this.load.image('bg2', 'assets/backgrounds/layer-2.png');
+    this.load.image('bg3', 'assets/backgrounds/layer-3.png');
+    this.load.image('bg4', 'assets/backgrounds/layer-4.png');
+    this.load.image('bg5', 'assets/backgrounds/layer-5.png');
+    this.load.image('bg6', 'assets/backgrounds/layer-6.png');
 
-    // Eagle frames
-    this.load.image('player_fly_1', 'Assets/player/frame-1.png');
-    this.load.image('player_fly_2', 'Assets/player/frame-2.png');
-    this.load.image('player_fly_3', 'Assets/player/frame-3.png');
-    this.load.image('player_fly_4', 'Assets/player/frame-4.png');
+    // Eagle frames (files are flying-1.png through flying-4.png)
+    this.load.image('player_fly_1', 'assets/player/flying-1.png');
+    this.load.image('player_fly_2', 'assets/player/flying-2.png');
+    this.load.image('player_fly_3', 'assets/player/flying-3.png');
+    this.load.image('player_fly_4', 'assets/player/flying-4.png');
 
     // Budgie frames
-    this.load.image('budgie_fly_1', 'Assets/Budgie/frame-1.png');
-    this.load.image('budgie_fly_2', 'Assets/Budgie/frame-2.png');
-    this.load.image('budgie_fly_3', 'Assets/Budgie/frame-3.png');
-    this.load.image('budgie_fly_4', 'Assets/Budgie/frame-4.png');
+    this.load.image('budgie_fly_1', 'assets/budgie/frame-1.png');
+    this.load.image('budgie_fly_2', 'assets/budgie/frame-2.png');
+    this.load.image('budgie_fly_3', 'assets/budgie/frame-3.png');
+    this.load.image('budgie_fly_4', 'assets/budgie/frame-4.png');
   }
 
   create(): void {
     const { width, height } = this.scale;
 
-    // === Parallax background layers (back to front: layer-1 to layer-6) ===
+    // === Parallax background layers ===
     const layerKeys = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'bg6'];
-    
     for (const key of layerKeys) {
       const layer = this.add.tileSprite(0, 0, width, height, key);
       layer.setOrigin(0, 0);
@@ -155,14 +108,14 @@ export default class GameScene extends Phaser.Scene {
       repeat: -1,
     });
 
-    // === Player sprite (red eagle - Patriot) ===
+    // === Player sprite (Patriot eagle) ===
     this.player = this.physics.add.sprite(debugConfig.patriotX, height * debugConfig.patriotY, 'player_fly_1');
     this.player.setScale(debugConfig.birdScale);
     this.player.play('player_fly');
+    this.player.setData('targetDirection', 0);
 
-    // === 4 Budgies in fixed vertical column on left side ===
-    // Formation: 2 above center, 2 below center
-    const verticalOffsets = [-1.5, -0.5, 0.5, 1.5]; // evenly spaced
+    // === 4 Budgies ===
+    const verticalOffsets = [-1.5, -0.5, 0.5, 1.5];
     for (let i = 0; i < 4; i++) {
       const budgie = this.physics.add.sprite(
         debugConfig.budgieX,
@@ -175,30 +128,23 @@ export default class GameScene extends Phaser.Scene {
       this.budgies.push(budgie);
     }
 
-    // Keyboard controls for desktop
+    // Keyboard controls
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
     }
 
-    // === Touch/Click controls ===
-    // Touch upper half = go up, touch lower half = go down
+    // Touch/Click controls
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const midY = height / 2;
-      if (pointer.y < midY) {
+      if (pointer.y < height / 2) {
         this.player.setData('targetDirection', -1);
       } else {
         this.player.setData('targetDirection', 1);
       }
-      this.isPlayerControlled = true;
     });
 
     this.input.on('pointerup', () => {
       this.player.setData('targetDirection', 0);
-      this.isPlayerControlled = false;
     });
-
-    // Initialize target direction (0 = gravitate to middle)
-    this.player.setData('targetDirection', 0);
 
     // HUD text
     this.add.text(width / 2, 40, 'PATRIOT', {
@@ -213,58 +159,78 @@ export default class GameScene extends Phaser.Scene {
       color: '#ffffff',
     }).setOrigin(0.5);
 
-    // === Night overlay (dark blue tint) ===
+    // === Night overlay ===
     this.nightOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x0a1628, 0);
-    this.nightOverlay.setDepth(100); // Above backgrounds and birds
-    
-    // === Initialize weather system ===
+    this.nightOverlay.setDepth(100);
+
+    // === Weather system ===
     this.weather = {
       state: 'day',
       stateTimer: 0,
-      dayDuration: Phaser.Math.Between(30000, 60000), // 30-60 seconds
-      nightDuration: 20000, // 20 seconds of night before storm
-      transitionDuration: 5000, // 5 second transitions
-      stormDuration: 15000, // 15 seconds of storm
+      dayDuration: Phaser.Math.Between(30000, 60000),
+      nightDuration: 10000,
+      transitionDuration: 3000,
+      stormDuration: 12000,
       darkness: 0,
       rainDrops: [],
       lightningFlash: null,
       nextLightning: 0,
       rainIntensity: 0,
     };
-    
-    // Create lightning flash rectangle (hidden initially)
+
     this.weather.lightningFlash = this.add.rectangle(width / 2, height / 2, width, height, 0xffffff, 0);
     this.weather.lightningFlash.setDepth(101);
+
+    // Expose night mode trigger
+    (window as any).triggerNightMode = () => this.triggerNightMode();
+  }
+
+  private triggerNightMode(): void {
+    const w = this.weather;
+    if (w.state === 'day') {
+      w.state = 'transition-to-night';
+      w.stateTimer = 0;
+      console.log('🌙 Transitioning to night...');
+    } else if (w.state === 'night' || w.state === 'storm') {
+      w.state = 'transition-to-day';
+      w.stateTimer = 0;
+      console.log('☀️ Transitioning to day...');
+    } else if (w.state === 'transition-to-night') {
+      w.state = 'storm';
+      w.stateTimer = 0;
+      w.darkness = 0.7;
+      w.nextLightning = 500;
+      this.nightOverlay.setAlpha(0.7);
+      console.log('⛈️ Storm!');
+    }
   }
 
   update(_time: number, delta: number): void {
     const { width, height } = this.scale;
     const groundY = height * debugConfig.groundLevel;
     const targetY = height * debugConfig.patriotY;
-    
-    // === Update bird scale and X position live ===
+
+    // Update player
     this.player.setScale(debugConfig.birdScale);
     this.player.x = debugConfig.patriotX;
-    
-    // === Update animation FPS live ===
+
+    // Update animation FPS
     const anim = this.anims.get('player_fly');
     if (anim && anim.frameRate !== debugConfig.animFps) {
       anim.frameRate = debugConfig.animFps;
     }
-    
-    // === Parallax scroll ===
+
+    // Parallax scroll
     const base = delta * debugConfig.bgSpeed;
     const speeds = [0.1, 0.2, 0.4, 0.6, 0.8, 1.0];
-
     for (let i = 0; i < this.bgLayers.length; i++) {
       this.bgLayers[i].tilePositionX += base * speeds[i];
     }
 
-    // === Player movement ===
+    // Player movement
     const moveSpeed = debugConfig.moveSpeed;
     const targetDirection = this.player.getData('targetDirection') as number;
-    
-    // Keyboard controls (desktop)
+
     if (this.cursors?.up?.isDown) {
       this.player.setVelocityY(-moveSpeed);
     } else if (this.cursors?.down?.isDown) {
@@ -274,37 +240,30 @@ export default class GameScene extends Phaser.Scene {
     } else if (targetDirection === 1) {
       this.player.setVelocityY(moveSpeed);
     } else {
-      // No input - gravitate toward target Y position from slider
       const diff = targetY - this.player.y;
-      
       if (Math.abs(diff) > 5) {
         this.player.setVelocityY(Math.sign(diff) * debugConfig.gravitySpeed);
-        this.isPlayerControlled = false;
       } else {
         this.player.setVelocityY(0);
-        this.isPlayerControlled = false;
       }
     }
 
-    // === Ground collision - can't go below ground ===
+    // Boundaries
     if (this.player.y > groundY) {
       this.player.y = groundY;
       this.player.setVelocityY(0);
     }
-
-    // === Ceiling - can't go above screen ===
-    const minY = 50;
-    if (this.player.y < minY) {
-      this.player.y = minY;
+    if (this.player.y < 50) {
+      this.player.y = 50;
       this.player.setVelocityY(0);
     }
 
-    // === Tilt bird based on vertical movement ===
+    // Tilt bird
     const vy = this.player.body?.velocity.y ?? 0;
     const targetAngle = (vy / moveSpeed) * debugConfig.maxTilt;
     this.player.angle = Phaser.Math.Linear(this.player.angle, targetAngle, 0.1);
 
-    // Horizontal movement (keyboard only)
+    // Horizontal keyboard
     if (this.cursors?.left?.isDown) {
       this.player.setVelocityX(-moveSpeed);
     } else if (this.cursors?.right?.isDown) {
@@ -313,24 +272,16 @@ export default class GameScene extends Phaser.Scene {
       this.player.setVelocityX(0);
     }
 
-    // === Budgies stay at fixed screen position ===
+    // Budgies
     const budgieCenterY = height * debugConfig.budgieY;
     for (const budgie of this.budgies) {
       const verticalOffset = budgie.getData('verticalOffset') as number;
-      
-      // Fixed position on screen
       budgie.x = debugConfig.budgieX;
       budgie.y = budgieCenterY + verticalOffset * debugConfig.budgieSpacing;
       budgie.setScale(debugConfig.budgieScale);
-      
-      // Update budgie animation FPS
-      const budgieAnim = this.anims.get('budgie_fly');
-      if (budgieAnim && budgieAnim.frameRate !== debugConfig.animFps) {
-        budgieAnim.frameRate = debugConfig.animFps;
-      }
     }
 
-    // === Weather System ===
+    // Weather
     this.updateWeather(delta, width, height);
   }
 
@@ -340,7 +291,6 @@ export default class GameScene extends Phaser.Scene {
 
     switch (w.state) {
       case 'day':
-        // Wait for random day duration
         if (w.stateTimer >= w.dayDuration) {
           w.state = 'transition-to-night';
           w.stateTimer = 0;
@@ -348,11 +298,9 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'transition-to-night':
-        // Gradually darken
         const nightProgress = Math.min(w.stateTimer / w.transitionDuration, 1);
-        w.darkness = nightProgress * 0.7; // Max 70% dark
+        w.darkness = nightProgress * 0.7;
         this.nightOverlay.setAlpha(w.darkness);
-        
         if (w.stateTimer >= w.transitionDuration) {
           w.state = 'night';
           w.stateTimer = 0;
@@ -360,20 +308,17 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'night':
-        // Wait before storm
         if (w.stateTimer >= w.nightDuration) {
           w.state = 'storm';
           w.stateTimer = 0;
-          w.nextLightning = Phaser.Math.Between(1000, 3000);
+          w.nextLightning = Phaser.Math.Between(500, 2000);
         }
         break;
 
       case 'storm':
-        // Rain and lightning!
-        w.rainIntensity = Math.min(w.stateTimer / 2000, 1); // Ramp up rain
+        w.rainIntensity = Math.min(w.stateTimer / 2000, 1);
         this.updateRain(delta, width, height);
         this.updateLightning(delta);
-        
         if (w.stateTimer >= w.stormDuration) {
           w.state = 'transition-to-day';
           w.stateTimer = 0;
@@ -381,98 +326,80 @@ export default class GameScene extends Phaser.Scene {
         break;
 
       case 'transition-to-day':
-        // Gradually lighten and reduce rain
         const dayProgress = Math.min(w.stateTimer / w.transitionDuration, 1);
         w.darkness = 0.7 * (1 - dayProgress);
         w.rainIntensity = 1 - dayProgress;
         this.nightOverlay.setAlpha(w.darkness);
         this.updateRain(delta, width, height);
-        
         if (w.stateTimer >= w.transitionDuration) {
           w.state = 'day';
           w.stateTimer = 0;
-          w.dayDuration = Phaser.Math.Between(30000, 60000); // New random day duration
+          w.dayDuration = Phaser.Math.Between(30000, 60000);
           this.clearRain();
         }
         break;
     }
   }
 
-  private updateRain(delta: number, width: number, height: number): void {
+  private updateRain(_delta: number, width: number, height: number): void {
     const w = this.weather;
-    const targetDrops = Math.floor(w.rainIntensity * 150); // Up to 150 rain drops
-    
-    // Add new drops if needed
+    const targetDrops = Math.floor(w.rainIntensity * 150);
+
     while (w.rainDrops.length < targetDrops) {
       const x = Phaser.Math.Between(0, width);
-      const y = Phaser.Math.Between(-100, -10);
-      const length = Phaser.Math.Between(15, 30);
-      const drop = this.add.line(0, 0, x, y, x - 5, y + length, 0xaaccff, 0.6);
-      drop.setLineWidth(1.5);
+      const y = Phaser.Math.Between(-50, 0);
+      const drop = this.add.line(0, 0, x, y, x - 3, y + 20, 0xaaccff, 0.5);
+      drop.setLineWidth(1);
       drop.setDepth(102);
-      drop.setData('speedY', Phaser.Math.Between(800, 1200));
-      drop.setData('speedX', Phaser.Math.Between(-100, -50));
+      drop.setData('speed', Phaser.Math.Between(600, 1000));
       w.rainDrops.push(drop);
     }
-    
-    // Remove excess drops
+
     while (w.rainDrops.length > targetDrops) {
       const drop = w.rainDrops.pop();
       if (drop) drop.destroy();
     }
-    
-    // Update drop positions
-    const dtSec = delta / 1000;
+
     for (const drop of w.rainDrops) {
-      const speedY = drop.getData('speedY') as number;
-      const speedX = drop.getData('speedX') as number;
+      const speed = drop.getData('speed') as number;
       const geom = drop.geom as Phaser.Geom.Line;
-      
-      geom.x1 += speedX * dtSec;
-      geom.y1 += speedY * dtSec;
-      geom.x2 += speedX * dtSec;
-      geom.y2 += speedY * dtSec;
-      
-      // Reset if off screen
+      const dy = speed * 0.016;
+      geom.y1 += dy;
+      geom.y2 += dy;
+      geom.x1 -= dy * 0.1;
+      geom.x2 -= dy * 0.1;
+
       if (geom.y1 > height) {
         geom.x1 = Phaser.Math.Between(0, width);
-        geom.y1 = Phaser.Math.Between(-100, -10);
-        geom.x2 = geom.x1 - 5;
-        geom.y2 = geom.y1 + Phaser.Math.Between(15, 30);
+        geom.y1 = Phaser.Math.Between(-50, 0);
+        geom.x2 = geom.x1 - 3;
+        geom.y2 = geom.y1 + 20;
       }
-      
-      // Update the line's display
       drop.setTo(geom.x1, geom.y1, geom.x2, geom.y2);
     }
   }
 
-  private updateLightning(_delta: number): void {
+  private updateLightning(delta: number): void {
     const w = this.weather;
-    
-    // Check for lightning flash
-    w.nextLightning -= _delta;
-    
+    w.nextLightning -= delta;
+
     if (w.nextLightning <= 0) {
-      // Flash!
       this.triggerLightning();
-      w.nextLightning = Phaser.Math.Between(2000, 5000); // 2-5 seconds between strikes
+      w.nextLightning = Phaser.Math.Between(1500, 4000);
     }
   }
 
   private triggerLightning(): void {
     const flash = this.weather.lightningFlash;
     if (!flash) return;
-    
-    // Multiple quick flashes
+
     this.tweens.add({
       targets: flash,
-      alpha: { from: 0.9, to: 0 },
-      duration: 50,
+      alpha: { from: 0.8, to: 0 },
+      duration: 60,
       yoyo: true,
-      repeat: 2,
-      onComplete: () => {
-        flash.setAlpha(0);
-      }
+      repeat: 1,
+      onComplete: () => flash.setAlpha(0),
     });
   }
 

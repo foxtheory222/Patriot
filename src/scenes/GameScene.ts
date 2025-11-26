@@ -327,7 +327,7 @@ export default class GameScene extends Phaser.Scene {
 
     switch (w.state) {
       case 'day': {
-        // Reset any lingering darkness
+        // Fully clear overlay during day
         w.darkness = 0;
         this.setOverlay(0, this.overlayBaseColor);
 
@@ -339,12 +339,16 @@ export default class GameScene extends Phaser.Scene {
       }
 
       case 'dusk': {
+        // Ease in a soft purple dusk
         const t = Phaser.Math.Clamp(w.stateTimer / w.duskDuration, 0, 1);
-        w.darkness = Phaser.Math.Linear(0, 0.65, t);
-        // Purple tint for dusk
-        this.setOverlay(w.darkness, 0x1a1240);
+        const eased = Phaser.Math.Easing.Sine.InOut(t);
 
-        if (w.stateTimer >= w.duskDuration) {
+        // Fade darkness from 0 → 0.7
+        w.darkness = Phaser.Math.Linear(0, 0.7, eased);
+        // Rich purple dusk tint
+        this.setOverlay(w.darkness, 0x2a183b);
+
+        if (t >= 1) {
           w.state = 'night';
           w.stateTimer = 0;
         }
@@ -352,30 +356,34 @@ export default class GameScene extends Phaser.Scene {
       }
 
       case 'night': {
-        // Keep it dark; after nightDuration, start a storm
-        w.darkness = 0.9;
-        // Deep purple night
-        this.setOverlay(w.darkness, 0x0a0622);
+        // Slight deepening of the purple before the storm
+        const t = Phaser.Math.Clamp(w.stateTimer / w.nightDuration, 0, 1);
+        const eased = Phaser.Math.Easing.Sine.InOut(t);
 
-        if (w.stateTimer >= w.nightDuration) {
+        // Go from 0.7 → 0.85 darkness over the night
+        w.darkness = Phaser.Math.Linear(0.7, 0.85, eased);
+        this.setOverlay(w.darkness, 0x201038);
+
+        if (t >= 1) {
           w.state = 'storm';
           w.stateTimer = 0;
           w.rainIntensity = 0;
-          w.nextLightning = Phaser.Math.Between(500, 2000);
+          w.nextLightning = Phaser.Math.Between(600, 1800);
         }
         break;
       }
 
       case 'storm': {
-        // Ramp up rain over first 2 seconds
-        const ramp = Phaser.Math.Clamp(w.stateTimer / 2000, 0, 1);
-        w.rainIntensity = ramp;
+        // Keep a deep purple night during the storm
+        this.setOverlay(w.darkness, 0x1a0f33);
+
+        // Fade rain in over first 2 seconds with easing
+        const fadeIn = Phaser.Math.Clamp(w.stateTimer / 2000, 0, 1);
+        const eased = Phaser.Math.Easing.Sine.Out(fadeIn);
+        w.rainIntensity = eased;
 
         this.updateRain(delta, width, height);
         this.updateLightning(delta);
-
-        // Keep it quite dark during storms with a purple cast
-        this.setOverlay(Math.max(w.darkness, 0.8), 0x09071b);
 
         if (w.stateTimer >= w.stormDuration) {
           w.state = 'dawn';
@@ -385,21 +393,23 @@ export default class GameScene extends Phaser.Scene {
       }
 
       case 'dawn': {
-        // Fade rain and darkness out with a warm-to-neutral tint
+        // Fade rain and darkness out, still with a warm purple tint
         const t = Phaser.Math.Clamp(w.stateTimer / w.dawnDuration, 0, 1);
-        w.darkness = Phaser.Math.Linear(0.65, 0.08, t);
-        // Slightly warm purple dawn
+        const eased = Phaser.Math.Easing.Sine.InOut(t);
+
+        // Darkness 0.85 → 0
+        w.darkness = Phaser.Math.Linear(0.85, 0, eased);
         this.setOverlay(w.darkness, 0x2a183b);
 
-        // Rain intensity goes down to zero
-        w.rainIntensity = Phaser.Math.Linear(1, 0, t);
+        // Rain 1 → 0
+        w.rainIntensity = Phaser.Math.Linear(1, 0, eased);
         this.updateRain(delta, width, height);
 
-        if (w.stateTimer >= w.dawnDuration) {
-          // Back to day; reset some durations for variety
+        if (t >= 1) {
+          // Back to day; randomize next day a bit
           w.state = 'day';
           w.stateTimer = 0;
-          w.dayDuration = Phaser.Math.Between(12000, 18000);
+          w.dayDuration = Phaser.Math.Between(15000, 25000);
           w.rainIntensity = 0;
           this.clearRain();
           this.setOverlay(0, this.overlayBaseColor);
@@ -409,7 +419,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private updateRain(_delta: number, width: number, height: number): void {
+  private updateRain(delta: number, width: number, height: number): void {
     const w = this.weather;
     const targetDrops = Math.floor(150 * w.rainIntensity);
 
@@ -434,7 +444,8 @@ export default class GameScene extends Phaser.Scene {
     for (const drop of w.rainDrops) {
       const speed = drop.getData('speed') as number;
       const geom = drop.geom as Phaser.Geom.Line;
-      const dy = speed * 0.016;
+      const dt = delta * 0.001;
+      const dy = speed * dt;
 
       geom.y1 += dy;
       geom.y2 += dy;

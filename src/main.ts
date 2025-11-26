@@ -6,13 +6,14 @@ const config: Phaser.Types.Core.GameConfig = {
   width: 1024, // matches the background asset size
   height: 512,
   backgroundColor: '#000000',
-  pixelArt: true,  // Disable antialiasing for sharper sprites
-  antialias: false,
-  roundPixels: true,
+
+  // Smooth rendering for high-res art
+  pixelArt: false,
+  roundPixels: true, // still avoid jitter
   render: {
-    pixelArt: true,
-    antialias: false,
-    antialiasGL: false,
+    pixelArt: false,
+    antialias: true,
+    antialiasGL: true,
   },
   physics: {
     default: 'arcade',

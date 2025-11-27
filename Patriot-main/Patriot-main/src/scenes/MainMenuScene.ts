@@ -134,13 +134,24 @@ export default class MainMenuScene extends Phaser.Scene {
     });
 
     this.createPolishedButton(width / 2, buttonY + buttonSpacing * 3, 'QUIT', 0x880000, 0xcc2222, () => {
-      this.menuMusic?.stop();
-      // Close the app/window for mobile
-      window.close();
-      // Fallback for browsers that block window.close()
-      if (navigator.app && navigator.app.exitApp) {
-        (navigator as any).app.exitApp();
-      }
+      // Show a message since browsers block window.close()
+      const quitText = this.add.text(width / 2, height / 2, 'Please close the browser tab to quit', {
+        fontFamily: 'Arial Black',
+        fontSize: '24px',
+        color: '#FFFFFF',
+        stroke: '#000000',
+        strokeThickness: 4,
+        backgroundColor: '#000000AA',
+        padding: { x: 20, y: 10 }
+      }).setOrigin(0.5).setDepth(1000);
+      
+      this.tweens.add({
+        targets: quitText,
+        alpha: 0,
+        duration: 3000,
+        delay: 2000,
+        onComplete: () => quitText.destroy()
+      });
     });
 
     // Decorative stars/sparkles
@@ -154,9 +165,15 @@ export default class MainMenuScene extends Phaser.Scene {
     });
     footer.setOrigin(0.5);
 
-    // Play menu music
+    // Play menu music (wait for user interaction if audio is locked)
     this.menuMusic = this.sound.add('menu_music', { loop: true, volume: 0.5 });
-    this.menuMusic.play();
+    if (this.sound.locked) {
+      this.sound.once('unlocked', () => {
+        this.menuMusic.play();
+      });
+    } else {
+      this.menuMusic.play();
+    }
 
     // Fade in effect
     this.cameras.main.fadeIn(1000, 0, 0, 0);

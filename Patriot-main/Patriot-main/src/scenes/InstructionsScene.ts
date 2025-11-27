@@ -164,9 +164,15 @@ export default class InstructionsScene extends Phaser.Scene {
       this.time.delayedCall(350, () => this.scene.start('MainMenuScene'));
     });
 
-    // Music
+    // Music (wait for user interaction if audio is locked)
     this.instructionsMusic = this.sound.add('instructions_music', { loop: true, volume: 0.4 });
-    this.instructionsMusic.play();
+    if (this.sound.locked) {
+      this.sound.once('unlocked', () => {
+        this.instructionsMusic.play();
+      });
+    } else {
+      this.instructionsMusic.play();
+    }
 
     this.cameras.main.fadeIn(500, 0, 0, 0);
   }

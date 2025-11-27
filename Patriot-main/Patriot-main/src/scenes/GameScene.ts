@@ -313,9 +313,14 @@ export default class GameScene extends Phaser.Scene {
     this.player.setScale(gameConfig.birdScale);
     this.player.play('player_fly');
     this.player.setData('targetDirection', 0);
+    // Resize hitbox to match scaled sprite (using circle for better gameplay)
+    const playerRadius = (this.player.width * gameConfig.birdScale) * 0.4;
+    this.player.body?.setCircle(playerRadius);
+    this.player.body?.setOffset((this.player.width - playerRadius * 2) / 2, (this.player.height - playerRadius * 2) / 2);
 
     // === 4 Budgies ===
-    const verticalOffsets = [-1.5, -0.5, 0.5, 1.5];
+    // Adjusted spacing to ensure all budgies are reachable (player min Y is 50, max is groundY)
+    const verticalOffsets = [-1.2, -0.4, 0.4, 1.2];
     for (let i = 0; i < 4; i++) {
       const budgie = this.physics.add.sprite(
         gameConfig.budgieX,
@@ -325,6 +330,10 @@ export default class GameScene extends Phaser.Scene {
       budgie.setScale(gameConfig.budgieScale);
       budgie.play('budgie_fly');
       budgie.setData('verticalOffset', verticalOffsets[i]);
+      // Resize hitbox to match scaled sprite
+      const budgieRadius = (budgie.width * gameConfig.budgieScale) * 0.4;
+      budgie.body?.setCircle(budgieRadius);
+      budgie.body?.setOffset((budgie.width - budgieRadius * 2) / 2, (budgie.height - budgieRadius * 2) / 2);
       this.budgies.push(budgie);
     }
 
@@ -563,9 +572,15 @@ export default class GameScene extends Phaser.Scene {
     this.add.circle(uiPadding + 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
     this.add.circle(width - uiPadding - 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
 
-    // Start game music
+    // Start game music (wait for user interaction if audio is locked)
     this.gameMusic = this.sound.add('game_music', { loop: true, volume: 0.4 });
-    this.gameMusic.play();
+    if (this.sound.locked) {
+      this.sound.once('unlocked', () => {
+        this.gameMusic.play();
+      });
+    } else {
+      this.gameMusic.play();
+    }
 
     // Preload poof sound for consistent playback
     this.poofSound = this.sound.add('poof_sound', { volume: 0.9 });
@@ -638,8 +653,9 @@ export default class GameScene extends Phaser.Scene {
       this.player.y = groundY;
       this.player.setVelocityY(0);
     }
-    if (this.player.y < 50) {
-      this.player.y = 50;
+    // Allow player to reach top of screen (relaxed from 50 to 30)
+    if (this.player.y < 30) {
+      this.player.y = 30;
       this.player.setVelocityY(0);
     }
 
@@ -819,6 +835,10 @@ export default class GameScene extends Phaser.Scene {
     falcon.setScale(gameConfig.birdScale * 0.9);
     falcon.setFlipX(true);
     falcon.play(`falcon_${variantKey}_fly`);
+    // Resize hitbox to match scaled sprite
+    const falconRadius = (falcon.width * gameConfig.birdScale * 0.9) * 0.4;
+    falcon.body?.setCircle(falconRadius);
+    falcon.body?.setOffset((falcon.width - falconRadius * 2) / 2, (falcon.height - falconRadius * 2) / 2);
 
     const speed = Phaser.Math.Between(180, 230);
 
@@ -934,6 +954,10 @@ export default class GameScene extends Phaser.Scene {
     bat.setScale(gameConfig.birdScale * 0.8);
     bat.setFlipX(true);
     bat.play('bat_fly');
+    // Resize hitbox to match scaled sprite
+    const batRadius = (bat.width * gameConfig.birdScale * 0.8) * 0.4;
+    bat.body?.setCircle(batRadius);
+    bat.body?.setOffset((bat.width - batRadius * 2) / 2, (bat.height - batRadius * 2) / 2);
 
     const speed = Phaser.Math.Between(160, 210);
 
@@ -1289,6 +1313,10 @@ export default class GameScene extends Phaser.Scene {
     bee.setFlipX(true); // Flip to face left
     bee.setDepth(60);
     bee.play('bee_fly');
+    // Resize hitbox to match scaled sprite
+    const beeRadius = (bee.width * gameConfig.beeScale) * 0.4;
+    bee.body?.setCircle(beeRadius);
+    bee.body?.setOffset((bee.width - beeRadius * 2) / 2, (bee.height - beeRadius * 2) / 2);
     
     // Move left towards budgies, speeding up over time
     bee.setVelocityX(-this.beeSpeed);

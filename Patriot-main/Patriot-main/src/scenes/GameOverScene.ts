@@ -160,10 +160,16 @@ export default class GameOverScene extends Phaser.Scene {
     // Save game stats
     this.saveGameStats(this.finalScore);
 
-    // Play game over music
+    // Play game over music (wait for user interaction if audio is locked)
     try {
       this.gameOverMusic = this.sound.add('gameover_music', { loop: false, volume: 0.4 });
-      this.gameOverMusic.play();
+      if (this.sound.locked) {
+        this.sound.once('unlocked', () => {
+          this.gameOverMusic.play();
+        });
+      } else {
+        this.gameOverMusic.play();
+      }
     } catch (e) {
       // Music might not be loaded
     }
@@ -249,19 +255,24 @@ export default class GameOverScene extends Phaser.Scene {
   }
 
   private checkHighScore(score: number): boolean {
-    const scoresJson = localStorage.getItem('patriot_high_scores');
-    let highScores: Array<{ name: string; score: number }> = scoresJson ? JSON.parse(scoresJson) : [];
+    try {
+      const scoresJson = localStorage.getItem('patriot_high_scores');
+      let highScores: Array<{ name: string; score: number }> = scoresJson ? JSON.parse(scoresJson) : [];
 
-    // Check if this score makes the top 10
-    if (highScores.length < 10 || score > highScores[highScores.length - 1].score) {
-      // Add new score
-      highScores.push({ name: 'PLAYER', score: score });
-      highScores.sort((a, b) => b.score - a.score);
-      highScores = highScores.slice(0, 10);
-      localStorage.setItem('patriot_high_scores', JSON.stringify(highScores));
-      return true;
+      // Check if this score makes the top 10
+      if (highScores.length < 10 || score > highScores[highScores.length - 1].score) {
+        // Add new score
+        highScores.push({ name: 'PLAYER', score: score });
+        highScores.sort((a, b) => b.score - a.score);
+        highScores = highScores.slice(0, 10);
+        localStorage.setItem('patriot_high_scores', JSON.stringify(highScores));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Failed to save high score to localStorage:', e);
+      return false;
     }
-    return false;
   }
 
   private saveGameStats(score: number): void {

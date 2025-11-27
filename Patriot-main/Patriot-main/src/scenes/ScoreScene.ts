@@ -119,16 +119,34 @@ export default class ScoreScene extends Phaser.Scene {
       this.time.delayedCall(350, () => this.scene.start('MainMenuScene'));
     });
 
-    // Music
+    // Music (wait for user interaction if audio is locked)
     this.scoreMusic = this.sound.add('score_music', { loop: true, volume: 0.3 });
-    this.scoreMusic.play();
+    if (this.sound.locked) {
+      this.sound.once('unlocked', () => {
+        this.scoreMusic.play();
+      });
+    } else {
+      this.scoreMusic.play();
+    }
 
     this.cameras.main.fadeIn(500, 0, 0, 0);
   }
 
   private getHighScores(): Array<{ name: string; score: number }> {
-    const scoresJson = localStorage.getItem('patriot_high_scores');
-    if (!scoresJson) {
+    try {
+      const scoresJson = localStorage.getItem('patriot_high_scores');
+      if (!scoresJson) {
+        return [
+          { name: 'PATRIOT', score: 5000 },
+          { name: 'EAGLE', score: 4000 },
+          { name: 'MAPLE', score: 3000 },
+          { name: 'CANADA', score: 2000 },
+          { name: 'BUDGIE', score: 1000 },
+        ];
+      }
+      return JSON.parse(scoresJson);
+    } catch (e) {
+      console.warn('Failed to load high scores from localStorage:', e);
       return [
         { name: 'PATRIOT', score: 5000 },
         { name: 'EAGLE', score: 4000 },
@@ -137,7 +155,6 @@ export default class ScoreScene extends Phaser.Scene {
         { name: 'BUDGIE', score: 1000 },
       ];
     }
-    return JSON.parse(scoresJson);
   }
 
   private createCard(x: number, y: number, w: number, h: number, color: number): void {

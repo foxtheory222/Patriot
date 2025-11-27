@@ -3,13 +3,19 @@ import Phaser from 'phaser';
 export default class GameOverScene extends Phaser.Scene {
   private gameOverMusic!: Phaser.Sound.BaseSound;
   private finalScore: number = 0;
+  private enemiesDefeated: number = 0;
+  private survivalTime: number = 0;
+  private budgiesSaved: number = 0;
 
   constructor() {
     super('GameOverScene');
   }
 
-  init(data: { score: number }): void {
+  init(data: { score: number; enemiesDefeated?: number; survivalTime?: number; budgiesSaved?: number }): void {
     this.finalScore = data.score || 0;
+    this.enemiesDefeated = data.enemiesDefeated || 0;
+    this.survivalTime = data.survivalTime || 0;
+    this.budgiesSaved = data.budgiesSaved || 0;
   }
 
   preload(): void {
@@ -82,11 +88,40 @@ export default class GameOverScene extends Phaser.Scene {
       },
     });
 
+    // Game stats panel
+    const statsY = height * 0.66;
+    const statsStyle = {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#CCCCCC',
+    };
+    
+    // Format survival time
+    const minutes = Math.floor(this.survivalTime / 60);
+    const seconds = this.survivalTime % 60;
+    const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+    
+    const statsText = this.add.text(width / 2, statsY, 
+      `⏱️ Survived: ${timeStr}   |   🦅 Enemies Defeated: ${this.enemiesDefeated}   |   🐦 Budgies Saved: ${this.budgiesSaved}/4`,
+      statsStyle
+    );
+    statsText.setOrigin(0.5);
+    statsText.setAlpha(0);
+    
+    // Fade in stats after score count-up
+    this.time.delayedCall(2000, () => {
+      this.tweens.add({
+        targets: statsText,
+        alpha: 1,
+        duration: 500,
+      });
+    });
+
     // Check for new high score
     const isNewHighScore = this.checkHighScore(this.finalScore);
     if (isNewHighScore) {
       this.time.delayedCall(2500, () => {
-        const newHighText = this.add.text(width / 2, height * 0.68, '🎉 NEW HIGH SCORE! 🎉', {
+        const newHighText = this.add.text(width / 2, height * 0.76, '🎉 NEW HIGH SCORE! 🎉', {
           fontFamily: 'Arial Black',
           fontSize: '28px',
           color: '#00FF00',

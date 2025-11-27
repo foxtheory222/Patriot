@@ -70,6 +70,7 @@ export default class GameScene extends Phaser.Scene {
   private bees!: Phaser.Physics.Arcade.Group;
   private score = 0;
   private scoreText!: Phaser.GameObjects.Text;
+  private budgieIndicators: Phaser.GameObjects.Text[] = [];
   private beeSpeed = 200;
   private gameTime = 0; // Track total game time for difficulty scaling
   private currentFalconVariant = 0; // 0=A, 1=B, 2=C, 3=D
@@ -79,6 +80,10 @@ export default class GameScene extends Phaser.Scene {
   private lastBudgieCacheUpdate = 0; // Track when cache was last updated
   private gameMusic!: Phaser.Sound.BaseSound;
   private isGameOver = false;
+  private isPaused = false;
+  private pauseOverlay!: Phaser.GameObjects.Container;
+  private enemiesDefeated = 0; // Track enemies defeated for stats
+  private startTime = 0; // Track game start time
 
   constructor() {
     super('GameScene');
@@ -175,6 +180,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Sound effects
     this.load.audio('poof_sound', 'music/poof-80161.mp3');
+    this.load.audio('dizzy_sound', 'music/cartoon-spin-7120.mp3');
   }
 
   create(): void {
@@ -190,6 +196,8 @@ export default class GameScene extends Phaser.Scene {
     this.currentFalconVariant = 0;
     this.bgLayers = [];
     this.budgies = [];
+    this.enemiesDefeated = 0;
+    this.startTime = Date.now();
 
     // === Parallax background layers ===
     const layerKeys = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'bg6'];
@@ -199,97 +207,105 @@ export default class GameScene extends Phaser.Scene {
       this.bgLayers.push(layer);
     }
 
-    // === Player animation ===
-    this.anims.create({
-      key: 'player_fly',
-      frames: [
-        { key: 'player_fly_1' },
-        { key: 'player_fly_2' },
-        { key: 'player_fly_3' },
-        { key: 'player_fly_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    // === Create animations only if they don't exist ===
+    if (!this.anims.exists('player_fly')) {
+      this.anims.create({
+        key: 'player_fly',
+        frames: [
+          { key: 'player_fly_1' },
+          { key: 'player_fly_2' },
+          { key: 'player_fly_3' },
+          { key: 'player_fly_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
-    // === Budgie animation ===
-    this.anims.create({
-      key: 'budgie_fly',
-      frames: [
-        { key: 'budgie_fly_1' },
-        { key: 'budgie_fly_2' },
-        { key: 'budgie_fly_3' },
-        { key: 'budgie_fly_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    if (!this.anims.exists('budgie_fly')) {
+      this.anims.create({
+        key: 'budgie_fly',
+        frames: [
+          { key: 'budgie_fly_1' },
+          { key: 'budgie_fly_2' },
+          { key: 'budgie_fly_3' },
+          { key: 'budgie_fly_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
-    // === Bee animation ===
-    this.anims.create({
-      key: 'bee_fly',
-      frames: [
-        { key: 'bee_1' },
-        { key: 'bee_2' },
-      ],
-      frameRate: 8,
-      repeat: -1,
-    });
+    if (!this.anims.exists('bee_fly')) {
+      this.anims.create({
+        key: 'bee_fly',
+        frames: [
+          { key: 'bee_1' },
+          { key: 'bee_2' },
+        ],
+        frameRate: 8,
+        repeat: -1,
+      });
+    }
 
-    // === Budgie hit animation ===
-    this.anims.create({
-      key: 'budgie_hit',
-      frames: [
-        { key: 'budgie_hit_1' },
-        { key: 'budgie_hit_2' },
-      ],
-      frameRate: 10,
-      repeat: -1,
-    });
+    if (!this.anims.exists('budgie_hit')) {
+      this.anims.create({
+        key: 'budgie_hit',
+        frames: [
+          { key: 'budgie_hit_1' },
+          { key: 'budgie_hit_2' },
+        ],
+        frameRate: 10,
+        repeat: -1,
+      });
+    }
 
-    // === Enemy explosion animation ===
-    this.anims.create({
-      key: 'enemy_explode',
-      frames: [
-        { key: 'explode_1' },
-        { key: 'explode_2' },
-        { key: 'explode_3' },
-        { key: 'explode_4' },
-        { key: 'explode_5' },
-      ],
-      frameRate: 12,
-      repeat: 0,
-    });
+    if (!this.anims.exists('enemy_explode')) {
+      this.anims.create({
+        key: 'enemy_explode',
+        frames: [
+          { key: 'explode_1' },
+          { key: 'explode_2' },
+          { key: 'explode_3' },
+          { key: 'explode_4' },
+          { key: 'explode_5' },
+        ],
+        frameRate: 12,
+        repeat: 0,
+      });
+    }
 
-    // === Player Dizzy animation ===
-    this.anims.create({
-      key: 'player_dizzy',
-      frames: [
-        { key: 'player_dizzy_1' },
-        { key: 'player_dizzy_2' },
-        { key: 'player_dizzy_3' },
-        { key: 'player_dizzy_4' },
-        { key: 'player_dizzy_5' },
-        { key: 'player_dizzy_6' },
-        { key: 'player_dizzy_7' },
-        { key: 'player_dizzy_8' },
-      ],
-      frameRate: 10,
-      repeat: -1,
-    });
+    if (!this.anims.exists('player_dizzy')) {
+      this.anims.create({
+        key: 'player_dizzy',
+        frames: [
+          { key: 'player_dizzy_1' },
+          { key: 'player_dizzy_2' },
+          { key: 'player_dizzy_3' },
+          { key: 'player_dizzy_4' },
+          { key: 'player_dizzy_5' },
+          { key: 'player_dizzy_6' },
+          { key: 'player_dizzy_7' },
+          { key: 'player_dizzy_8' },
+        ],
+        frameRate: 10,
+        repeat: -1,
+      });
+    }
 
-    // === Player Faint animation ===
-    this.anims.create({
-      key: 'player_faint',
-      frames: [
-        { key: 'player_faint_1' },
-        { key: 'player_faint_2' },
-        { key: 'player_faint_3' },
-        { key: 'player_faint_4' },
-      ],
-      frameRate: 8,
-      repeat: 0,
-    });
+    if (!this.anims.exists('player_faint')) {
+      this.anims.create({
+        key: 'player_faint',
+        frames: [
+          { key: 'player_faint_1' },
+          { key: 'player_faint_2' },
+          { key: 'player_faint_3' },
+          { key: 'player_faint_4' },
+        ],
+        frameRate: 8,
+        repeat: 0,
+      });
+    }
 
     // === Player sprite (Patriot eagle) ===
     this.player = this.physics.add.sprite(debugConfig.patriotX, height * debugConfig.patriotY, 'player_fly_1');
@@ -323,54 +339,62 @@ export default class GameScene extends Phaser.Scene {
       runChildUpdate: false,
     });
 
-    // Attack Bird animations
-    this.anims.create({
-      key: 'falcon_a_fly',
-      frames: [
-        { key: 'falcon_a_1' },
-        { key: 'falcon_a_2' },
-        { key: 'falcon_a_3' },
-        { key: 'falcon_a_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    // Attack Bird animations - only create if they don't exist
+    if (!this.anims.exists('falcon_a_fly')) {
+      this.anims.create({
+        key: 'falcon_a_fly',
+        frames: [
+          { key: 'falcon_a_1' },
+          { key: 'falcon_a_2' },
+          { key: 'falcon_a_3' },
+          { key: 'falcon_a_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
-    this.anims.create({
-      key: 'falcon_b_fly',
-      frames: [
-        { key: 'falcon_b_1' },
-        { key: 'falcon_b_2' },
-        { key: 'falcon_b_3' },
-        { key: 'falcon_b_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    if (!this.anims.exists('falcon_b_fly')) {
+      this.anims.create({
+        key: 'falcon_b_fly',
+        frames: [
+          { key: 'falcon_b_1' },
+          { key: 'falcon_b_2' },
+          { key: 'falcon_b_3' },
+          { key: 'falcon_b_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
-    this.anims.create({
-      key: 'falcon_c_fly',
-      frames: [
-        { key: 'falcon_c_1' },
-        { key: 'falcon_c_2' },
-        { key: 'falcon_c_3' },
-        { key: 'falcon_c_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    if (!this.anims.exists('falcon_c_fly')) {
+      this.anims.create({
+        key: 'falcon_c_fly',
+        frames: [
+          { key: 'falcon_c_1' },
+          { key: 'falcon_c_2' },
+          { key: 'falcon_c_3' },
+          { key: 'falcon_c_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
-    this.anims.create({
-      key: 'falcon_d_fly',
-      frames: [
-        { key: 'falcon_d_1' },
-        { key: 'falcon_d_2' },
-        { key: 'falcon_d_3' },
-        { key: 'falcon_d_4' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    if (!this.anims.exists('falcon_d_fly')) {
+      this.anims.create({
+        key: 'falcon_d_fly',
+        frames: [
+          { key: 'falcon_d_1' },
+          { key: 'falcon_d_2' },
+          { key: 'falcon_d_3' },
+          { key: 'falcon_d_4' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
     // === Bats (night-only enemy) ===
     this.batGroup = this.physics.add.group({
@@ -378,45 +402,47 @@ export default class GameScene extends Phaser.Scene {
       runChildUpdate: false,
     });
 
-    this.anims.create({
-      key: 'bat_fly',
-      frames: [
-        { key: 'bat_fly_1' },
-        { key: 'bat_fly_2' },
-        { key: 'bat_fly_3' },
-        { key: 'bat_fly_4' },
-        { key: 'bat_fly_5' },
-        { key: 'bat_fly_6' },
-        { key: 'bat_fly_7' },
-        { key: 'bat_fly_8' },
-      ],
-      frameRate: debugConfig.animFps,
-      repeat: -1,
-    });
+    if (!this.anims.exists('bat_fly')) {
+      this.anims.create({
+        key: 'bat_fly',
+        frames: [
+          { key: 'bat_fly_1' },
+          { key: 'bat_fly_2' },
+          { key: 'bat_fly_3' },
+          { key: 'bat_fly_4' },
+          { key: 'bat_fly_5' },
+          { key: 'bat_fly_6' },
+          { key: 'bat_fly_7' },
+          { key: 'bat_fly_8' },
+        ],
+        frameRate: debugConfig.animFps,
+        repeat: -1,
+      });
+    }
 
     // Patriot vs falcons -> falcon explodes
     this.physics.add.overlap(
       this.player,
       this.falconGroup,
-      this.handlePatriotHitsFalcon,
+      (player, falcon) => this.handlePatriotHitsFalcon(player as Phaser.GameObjects.GameObject, falcon as Phaser.GameObjects.GameObject),
       undefined,
       this
     );
 
     // Patriot vs bats -> bat explodes
-    this.physics.add.overlap(this.player, this.batGroup, this.handlePatriotHitsBat, undefined, this);
+    this.physics.add.overlap(this.player, this.batGroup, (player, bat) => this.handlePatriotHitsBat(player as Phaser.GameObjects.GameObject, bat as Phaser.GameObjects.GameObject), undefined, this);
 
     // Falcons hitting budgies
     this.physics.add.overlap(
       this.falconGroup,
       this.budgieGroup,
-      this.handleFalconHitsBudgie,
+      (falcon, budgie) => this.handleFalconHitsBudgie(falcon as Phaser.GameObjects.GameObject, budgie as Phaser.GameObjects.GameObject),
       undefined,
       this
     );
 
     // Bats hitting budgies
-    this.physics.add.overlap(this.batGroup, this.budgieGroup, this.handleBatHitsBudgie, undefined, this);
+    this.physics.add.overlap(this.batGroup, this.budgieGroup, (bat, budgie) => this.handleBatHitsBudgie(bat as Phaser.GameObjects.GameObject, budgie as Phaser.GameObjects.GameObject), undefined, this);
 
     // Keyboard controls
     if (this.input.keyboard) {
@@ -488,17 +514,46 @@ export default class GameScene extends Phaser.Scene {
     });
 
     // Patriot hits bee -> Patriot dies!
-    this.physics.add.overlap(this.player, this.bees, this.handlePatriotHitsBee, undefined, this);
+    this.physics.add.overlap(this.player, this.bees, (player, bee) => this.handlePatriotHitsBee(player as Phaser.GameObjects.GameObject, bee as Phaser.GameObjects.GameObject), undefined, this);
 
-    // Score UI
+    // Score UI - improved with shadow and stroke for visibility
     this.scoreText = this.add
       .text(debugConfig.scoreX, debugConfig.scoreY, 'Score: 0', {
-        fontFamily: 'Arial',
-        fontSize: '16px',
+        fontFamily: 'Arial Black',
+        fontSize: '20px',
         color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 4,
+        shadow: { offsetX: 2, offsetY: 2, color: '#000000', blur: 4, fill: true },
+      })
+      .setDepth(150)
+      .setScrollFactor(0)
+      .setOrigin(1, 0); // Right-align
+
+    // Budgie life indicators (top-left)
+    this.budgieIndicators = [];
+    for (let i = 0; i < 4; i++) {
+      const indicator = this.add.text(20 + i * 30, 12, '🐦', {
+        fontSize: '24px',
       })
       .setDepth(150)
       .setScrollFactor(0);
+      this.budgieIndicators.push(indicator);
+    }
+
+    // Pause button (top-center)
+    const pauseBtn = this.add.text(width / 2, 15, '⏸️', {
+      fontSize: '28px',
+    })
+    .setDepth(150)
+    .setScrollFactor(0)
+    .setOrigin(0.5, 0)
+    .setInteractive({ useHandCursor: true });
+    
+    pauseBtn.on('pointerdown', () => this.togglePause());
+    
+    // Create pause overlay (hidden initially)
+    this.createPauseOverlay();
 
     // Start game music
     this.gameMusic = this.sound.add('game_music', { loop: true, volume: 0.4 });
@@ -545,8 +600,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    // Don't update if game is over
-    if (this.isGameOver) return;
+    // Don't update if game is over or paused
+    if (this.isGameOver || this.isPaused) return;
 
     const { width, height } = this.scale;
     const groundY = height * debugConfig.groundLevel;
@@ -1057,13 +1112,47 @@ export default class GameScene extends Phaser.Scene {
     this.markBudgieHit(budgie);
   }
 
-  private playEnemyExplosion(enemy: Phaser.Physics.Arcade.Sprite): void {
+  private playEnemyExplosion(enemy: Phaser.Physics.Arcade.Sprite, givePoints: boolean = true): void {
     // Disable physics but keep sprite visible for explosion animation
     enemy.disableBody(true, false);
     enemy.setVelocity(0, 0);
 
+    // Award points for defeating enemies
+    if (givePoints) {
+      this.incrementScore(25);
+      this.enemiesDefeated++;
+      
+      // Show floating score text
+      const floatingText = this.add.text(enemy.x, enemy.y - 20, '+25', {
+        fontFamily: 'Arial Black',
+        fontSize: '18px',
+        color: '#ffff00',
+        stroke: '#000000',
+        strokeThickness: 3,
+      }).setDepth(200);
+      
+      this.tweens.add({
+        targets: floatingText,
+        y: enemy.y - 60,
+        alpha: 0,
+        duration: 800,
+        ease: 'Power2',
+        onComplete: () => floatingText.destroy(),
+      });
+    }
+
     // Play poof sound
-    this.sound.play('poof_sound', { volume: 0.5 });
+    try {
+      if (this.sound.get('poof_sound')) {
+        this.sound.play('poof_sound', { volume: 0.6 });
+      } else {
+        // Sound not loaded yet, try to add and play
+        const poof = this.sound.add('poof_sound', { volume: 0.6 });
+        poof.play();
+      }
+    } catch (e) {
+      console.warn('Could not play poof sound:', e);
+    }
 
     // Create explosion sprite at enemy position
     const explosion = this.add.sprite(enemy.x, enemy.y, 'explode_1');
@@ -1087,6 +1176,17 @@ export default class GameScene extends Phaser.Scene {
 
     budgie.setData('isHit', true);
     budgie.setData('flashCount', 0);
+
+    // Update budgie indicator UI
+    const budgieIndex = this.budgies.indexOf(budgie);
+    if (budgieIndex >= 0 && this.budgieIndicators[budgieIndex]) {
+      this.budgieIndicators[budgieIndex].setText('💀');
+      this.tweens.add({
+        targets: this.budgieIndicators[budgieIndex],
+        scale: { from: 1.5, to: 1 },
+        duration: 200,
+      });
+    }
 
     // Switch to hit animation immediately
     budgie.play('budgie_hit');
@@ -1248,9 +1348,21 @@ export default class GameScene extends Phaser.Scene {
     if (this.isGameOver) return;
     this.isGameOver = true;
 
+    // Hide pause overlay if visible
+    if (this.pauseOverlay) {
+      this.pauseOverlay.setVisible(false);
+    }
+
     // Stop the game music
     if (this.gameMusic) {
       this.gameMusic.stop();
+    }
+
+    // Play dizzy/spin sound effect
+    try {
+      this.sound.play('dizzy_sound', { volume: 0.6 });
+    } catch (e) {
+      console.warn('Could not play dizzy sound:', e);
     }
 
     // Stop player movement and play dizzy animation
@@ -1266,9 +1378,92 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.fadeOut(800, 0, 0, 0);
         
         this.time.delayedCall(800, () => {
-          this.scene.start('GameOverScene', { score: this.score });
+          const survivalTime = Math.floor((Date.now() - this.startTime) / 1000);
+          const budgiesSaved = this.aliveBudgiesCache.length;
+          this.scene.start('GameOverScene', { 
+            score: this.score,
+            enemiesDefeated: this.enemiesDefeated,
+            survivalTime: survivalTime,
+            budgiesSaved: budgiesSaved,
+          });
         });
       });
     });
+  }
+
+  private createPauseOverlay(): void {
+    const { width, height } = this.scale;
+    
+    this.pauseOverlay = this.add.container(0, 0);
+    this.pauseOverlay.setDepth(500);
+    this.pauseOverlay.setVisible(false);
+    
+    // Dark overlay
+    const darkBg = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7);
+    
+    // Pause text
+    const pauseText = this.add.text(width / 2, height * 0.35, '⏸️ PAUSED', {
+      fontFamily: 'Arial Black',
+      fontSize: '48px',
+      color: '#FFFFFF',
+      stroke: '#000000',
+      strokeThickness: 4,
+    }).setOrigin(0.5);
+    
+    // Resume button
+    const resumeBtn = this.add.text(width / 2, height * 0.5, '▶️ RESUME', {
+      fontFamily: 'Arial Black',
+      fontSize: '28px',
+      color: '#00FF00',
+      stroke: '#000000',
+      strokeThickness: 3,
+      backgroundColor: '#004400',
+      padding: { x: 20, y: 10 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    resumeBtn.on('pointerover', () => resumeBtn.setScale(1.1));
+    resumeBtn.on('pointerout', () => resumeBtn.setScale(1));
+    resumeBtn.on('pointerdown', () => this.togglePause());
+    
+    // Main Menu button
+    const menuBtn = this.add.text(width / 2, height * 0.65, '🏠 MAIN MENU', {
+      fontFamily: 'Arial Black',
+      fontSize: '24px',
+      color: '#FFAA00',
+      stroke: '#000000',
+      strokeThickness: 3,
+      backgroundColor: '#442200',
+      padding: { x: 15, y: 8 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    menuBtn.on('pointerover', () => menuBtn.setScale(1.1));
+    menuBtn.on('pointerout', () => menuBtn.setScale(1));
+    menuBtn.on('pointerdown', () => {
+      if (this.gameMusic) this.gameMusic.stop();
+      this.scene.start('MainMenuScene');
+    });
+    
+    this.pauseOverlay.add([darkBg, pauseText, resumeBtn, menuBtn]);
+  }
+
+  private togglePause(): void {
+    if (this.isGameOver) return;
+    
+    this.isPaused = !this.isPaused;
+    this.pauseOverlay.setVisible(this.isPaused);
+    
+    if (this.isPaused) {
+      this.physics.pause();
+      this.anims.pauseAll();
+      if (this.gameMusic && (this.gameMusic as Phaser.Sound.WebAudioSound).isPlaying) {
+        (this.gameMusic as Phaser.Sound.WebAudioSound).pause();
+      }
+    } else {
+      this.physics.resume();
+      this.anims.resumeAll();
+      if (this.gameMusic) {
+        (this.gameMusic as Phaser.Sound.WebAudioSound).resume();
+      }
+    }
   }
 }

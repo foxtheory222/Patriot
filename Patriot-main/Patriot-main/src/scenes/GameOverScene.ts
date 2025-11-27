@@ -261,8 +261,17 @@ export default class GameOverScene extends Phaser.Scene {
 
       // Check if this score makes the top 10
       if (highScores.length < 10 || score > highScores[highScores.length - 1].score) {
-        // Add new score
-        highScores.push({ name: 'PLAYER', score: score });
+        // Get player name from localStorage or prompt
+        let playerName = localStorage.getItem('patriot_player_name') || '';
+        
+        // If no saved name, prompt for one
+        if (!playerName) {
+          this.promptForPlayerName(score, highScores);
+          return true;
+        }
+        
+        // Add new score with saved name
+        highScores.push({ name: playerName, score: score });
         highScores.sort((a, b) => b.score - a.score);
         highScores = highScores.slice(0, 10);
         localStorage.setItem('patriot_high_scores', JSON.stringify(highScores));
@@ -275,11 +284,137 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  private saveGameStats(score: number): void {
-    const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') + 1;
-    const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') + score;
+  private promptForPlayerName(score: number, highScores: Array<{ name: string; score: number }>): void {
+    const { width, height } = this.scale;
     
-    localStorage.setItem('patriot_total_games', totalGames.toString());
-    localStorage.setItem('patriot_total_score', totalScore.toString());
+    // Create modal overlay
+    const modalOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
+    modalOverlay.setDepth(2000);
+    modalOverlay.setInteractive();
+    
+    // Create modal panel
+    const modalPanel = this.add.rectangle(width / 2, height / 2, 400, 250, 0x1a1a2e, 1);
+    modalPanel.setDepth(2001);
+    modalPanel.setStrokeStyle(3, 0xFFD700);
+    
+    // Title
+    const titleText = this.add.text(width / 2, height / 2 - 80, 'NEW HIGH SCORE!', {
+      fontFamily: 'Arial Black',
+      fontSize: '24px',
+      color: '#FFD700',
+    }).setOrigin(0.5).setDepth(2002);
+    
+    // Instruction
+    const instructionText = this.add.text(width / 2, height / 2 - 40, 'Enter your name:', {
+      fontFamily: 'Arial',
+      fontSize: '16px',
+      color: '#FFFFFF',
+    }).setOrigin(0.5).setDepth(2002);
+    
+    // Input field background
+    const inputBg = this.add.rectangle(width / 2, height / 2, 300, 40, 0x333333, 1);
+    inputBg.setDepth(2002);
+    inputBg.setStrokeStyle(2, 0x666666);
+    
+    // Create HTML input element
+    const inputElement = document.createElement('input');
+    inputElement.type = 'text';
+    inputElement.maxLength = 12;
+    inputElement.placeholder = 'Your Name';
+    inputElement.style.position = 'absolute';
+    inputElement.style.left = `${width / 2 - 140}px`;
+    inputElement.style.top = `${height / 2 - 20}px`;
+    inputElement.style.width = '280px';
+    inputElement.style.height = '36px';
+    inputElement.style.fontSize = '18px';
+    inputElement.style.padding = '4px';
+    inputElement.style.border = '2px solid #666666';
+    inputElement.style.borderRadius = '4px';
+    inputElement.style.backgroundColor = '#333333';
+    inputElement.style.color = '#FFFFFF';
+    inputElement.style.textAlign = 'center';
+    inputElement.style.fontFamily = 'Arial';
+    inputElement.style.zIndex = '3000';
+    document.body.appendChild(inputElement);
+    inputElement.focus();
+    
+    // Display text (mirrors input)
+    const displayText = this.add.text(width / 2, height / 2, '', {
+      fontFamily: 'Arial',
+      fontSize: '18px',
+      color: '#FFFFFF',
+    }).setOrigin(0.5).setDepth(2003);
+    
+    // Update display text as user types
+    inputElement.addEventListener('input', () => {
+      displayText.setText(inputElement.value.toUpperCase());
+    });
+    
+    // Submit button
+    const submitBtn = this.add.rectangle(width / 2, height / 2 + 60, 150, 40, 0x00aa00, 1);
+    submitBtn.setDepth(2002);
+    submitBtn.setInteractive({ useHandCursor: true });
+    
+    const submitText = this.add.text(width / 2, height / 2 + 60, 'SUBMIT', {
+      fontFamily: 'Arial Black',
+      fontSize: '18px',
+      color: '#FFFFFF',
+    }).setOrigin(0.5).setDepth(2003);
+    
+    const submitScore = () => {
+      const playerName = inputElement.value.trim().toUpperCase() || 'PLAYER';
+      
+      try {
+        // Save player name for future games
+        localStorage.setItem('patriot_player_name', playerName);
+        
+        // Add score to high scores
+        highScores.push({ name: playerName, score: score });
+        highScores.sort((a, b) => b.score - a.score);
+        highScores = highScores.slice(0, 10);
+        localStorage.setItem('patriot_high_scores', JSON.stringify(highScores));
+      } catch (e) {
+        console.warn('Failed to save name/score:', e);
+      }
+      
+      // Clean up
+      document.body.removeChild(inputElement);
+      modalOverlay.destroy();
+      modalPanel.destroy();
+      titleText.destroy();
+      instructionText.destroy();
+      inputBg.destroy();
+      displayText.destroy();
+      submitBtn.destroy();
+      submitText.destroy();
+    };
+    
+    // Submit on button click
+    submitBtn.on('pointerover', () => {
+      submitBtn.setFillStyle(0x00ff00);
+    });
+    submitBtn.on('pointerout', () => {
+      submitBtn.setFillStyle(0x00aa00);
+    });
+    submitBtn.on('pointerdown', submitScore);
+    
+    // Submit on Enter key
+    inputElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        submitScore();
+      }
+    });
+  }
+
+  private saveGameStats(score: number): void {
+    try {
+      const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') + 1;
+      const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') + score;
+      
+      localStorage.setItem('patriot_total_games', totalGames.toString());
+      localStorage.setItem('patriot_total_score', totalScore.toString());
+    } catch (e) {
+      console.warn('Failed to save game stats to localStorage:', e);
+    }
   }
 }

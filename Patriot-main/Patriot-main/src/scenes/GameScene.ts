@@ -1081,7 +1081,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (!falcon.active || !budgie.active) return;
 
-    this.playEnemyExplosion(falcon);
+    // Budgie getting hit should not award player points
+    this.playEnemyExplosion(falcon, false);
     this.markBudgieHit(budgie);
   }
 
@@ -1094,7 +1095,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (!bat.active || !budgie.active) return;
 
-    this.playEnemyExplosion(bat);
+    // Budgie getting hit should not award player points
+    this.playEnemyExplosion(bat, false);
     this.markBudgieHit(budgie);
   }
 

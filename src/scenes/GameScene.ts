@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-// Debug config - read from HTML sliders
-const debugConfig = {
+// Tuned game constants
+const gameConfig = {
   bgSpeed: 0.36,
   moveSpeed: 280,
   gravitySpeed: 110,
@@ -16,8 +16,7 @@ const debugConfig = {
   budgieX: 60,
   budgieY: 0.4,
   beeScale: 0.025,
-  scoreX: 900,
-  scoreY: 12,
+  scorePadding: 18,
 };
 
 // Day / night / weather states
@@ -49,9 +48,6 @@ interface WeatherSystem {
 type FalconPhase = 'approach' | 'dive' | 'escape';
 type BatPhase = 'loop' | 'attack';
 
-// Expose to window for HTML controls
-(window as any).gameConfig = debugConfig;
-
 export default class GameScene extends Phaser.Scene {
   private bgLayers: Phaser.GameObjects.TileSprite[] = [];
   private player!: Phaser.Physics.Arcade.Sprite;
@@ -80,10 +76,9 @@ export default class GameScene extends Phaser.Scene {
   private lastBudgieCacheUpdate = 0; // Track when cache was last updated
   private gameMusic!: Phaser.Sound.BaseSound;
   private isGameOver = false;
-  private isPaused = false;
-  private pauseOverlay!: Phaser.GameObjects.Container;
   private enemiesDefeated = 0; // Track enemies defeated for stats
   private startTime = 0; // Track game start time
+  private poofSound!: Phaser.Sound.BaseSound;
 
   constructor() {
     super('GameScene');
@@ -217,7 +212,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'player_fly_3' },
           { key: 'player_fly_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -231,7 +226,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'budgie_fly_3' },
           { key: 'budgie_fly_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -308,8 +303,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // === Player sprite (Patriot eagle) ===
-    this.player = this.physics.add.sprite(debugConfig.patriotX, height * debugConfig.patriotY, 'player_fly_1');
-    this.player.setScale(debugConfig.birdScale);
+    this.player = this.physics.add.sprite(gameConfig.patriotX, height * gameConfig.patriotY, 'player_fly_1');
+    this.player.setScale(gameConfig.birdScale);
     this.player.play('player_fly');
     this.player.setData('targetDirection', 0);
 
@@ -317,11 +312,11 @@ export default class GameScene extends Phaser.Scene {
     const verticalOffsets = [-1.5, -0.5, 0.5, 1.5];
     for (let i = 0; i < 4; i++) {
       const budgie = this.physics.add.sprite(
-        debugConfig.budgieX,
-        height / 2 + verticalOffsets[i] * debugConfig.budgieSpacing,
+        gameConfig.budgieX,
+        height / 2 + verticalOffsets[i] * gameConfig.budgieSpacing,
         'budgie_fly_1'
       );
-      budgie.setScale(debugConfig.budgieScale);
+      budgie.setScale(gameConfig.budgieScale);
       budgie.play('budgie_fly');
       budgie.setData('verticalOffset', verticalOffsets[i]);
       this.budgies.push(budgie);
@@ -349,7 +344,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'falcon_a_3' },
           { key: 'falcon_a_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -363,7 +358,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'falcon_b_3' },
           { key: 'falcon_b_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -377,7 +372,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'falcon_c_3' },
           { key: 'falcon_c_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -391,7 +386,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'falcon_d_3' },
           { key: 'falcon_d_4' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -415,7 +410,7 @@ export default class GameScene extends Phaser.Scene {
           { key: 'bat_fly_7' },
           { key: 'bat_fly_8' },
         ],
-        frameRate: debugConfig.animFps,
+        frameRate: gameConfig.animFps,
         repeat: -1,
       });
     }
@@ -494,9 +489,6 @@ export default class GameScene extends Phaser.Scene {
       nextLightning: 0,
     };
 
-    // Allow HTML "Night" button to poke the state machine
-    (window as any).triggerNightMode = () => this.triggerNightMode();
-    
     // Bees group
     this.bees = this.physics.add.group({
       classType: Phaser.Physics.Arcade.Sprite,
@@ -516,48 +508,61 @@ export default class GameScene extends Phaser.Scene {
     // Patriot hits bee -> Patriot dies!
     this.physics.add.overlap(this.player, this.bees, (player, bee) => this.handlePatriotHitsBee(player as Phaser.GameObjects.GameObject, bee as Phaser.GameObjects.GameObject), undefined, this);
 
-    // Score UI - improved with shadow and stroke for visibility
+    // HUD container
+    const uiPadding = gameConfig.scorePadding;
+    const panelHeight = 46;
+
+    // Budgie life panel (top-left)
+    this.add.rectangle(uiPadding, uiPadding, 180, panelHeight, 0x0b0f1c, 0.55)
+      .setOrigin(0, 0)
+      .setDepth(150)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0xffffff, 0.25);
+
+    this.budgieIndicators = [];
+    for (let i = 0; i < 4; i++) {
+      const indicator = this.add
+        .text(uiPadding + 22 + i * 34, uiPadding + panelHeight / 2, '🐦', {
+          fontSize: '22px',
+        })
+        .setDepth(151)
+        .setScrollFactor(0)
+        .setOrigin(0.5);
+      this.budgieIndicators.push(indicator);
+    }
+
+    // Score panel (top-right)
+    const scorePanelWidth = 210;
+    this.add.rectangle(width - uiPadding, uiPadding, scorePanelWidth, panelHeight, 0x101833, 0.65)
+      .setOrigin(1, 0)
+      .setDepth(150)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0xffffff, 0.25);
+
     this.scoreText = this.add
-      .text(debugConfig.scoreX, debugConfig.scoreY, 'Score: 0', {
+      .text(width - uiPadding - 12, uiPadding + panelHeight / 2, 'Score: 0', {
         fontFamily: 'Arial Black',
         fontSize: '20px',
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 4,
         shadow: { offsetX: 2, offsetY: 2, color: '#000000', blur: 4, fill: true },
+        align: 'right',
       })
-      .setDepth(150)
+      .setDepth(151)
       .setScrollFactor(0)
-      .setOrigin(1, 0); // Right-align
+      .setOrigin(1, 0.5);
 
-    // Budgie life indicators (top-left)
-    this.budgieIndicators = [];
-    for (let i = 0; i < 4; i++) {
-      const indicator = this.add.text(20 + i * 30, 12, '🐦', {
-        fontSize: '24px',
-      })
-      .setDepth(150)
-      .setScrollFactor(0);
-      this.budgieIndicators.push(indicator);
-    }
-
-    // Pause button (top-center)
-    const pauseBtn = this.add.text(width / 2, 15, '⏸️', {
-      fontSize: '28px',
-    })
-    .setDepth(150)
-    .setScrollFactor(0)
-    .setOrigin(0.5, 0)
-    .setInteractive({ useHandCursor: true });
-    
-    pauseBtn.on('pointerdown', () => this.togglePause());
-    
-    // Create pause overlay (hidden initially)
-    this.createPauseOverlay();
+    // Slight accent circles for HUD anchors
+    this.add.circle(uiPadding + 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
+    this.add.circle(width - uiPadding - 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
 
     // Start game music
     this.gameMusic = this.sound.add('game_music', { loop: true, volume: 0.4 });
     this.gameMusic.play();
+
+    // Preload poof sound for consistent playback
+    this.poofSound = this.sound.add('poof_sound', { volume: 0.9 });
 
     // Fade in
     this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -570,42 +575,13 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  private triggerNightMode(): void {
-    const w = this.weather;
-
-    // Manual override from HTML button:
-    // - If we're in day or dawn => skip to dusk
-    // - If we're already in night or storm => go to dawn
-    // - If we're in dusk => jump straight into storm
-    switch (w.state) {
-      case 'day':
-      case 'dawn':
-        w.state = 'dusk';
-        w.stateTimer = 0;
-        break;
-
-      case 'dusk':
-        w.state = 'storm';
-        w.stateTimer = 0;
-        w.rainIntensity = 0.5;
-        w.nextLightning = 500;
-        break;
-
-      case 'night':
-      case 'storm':
-        w.state = 'dawn';
-        w.stateTimer = 0;
-        break;
-    }
-  }
-
   update(_time: number, delta: number): void {
-    // Don't update if game is over or paused
-    if (this.isGameOver || this.isPaused) return;
+    // Don't update if game is over
+    if (this.isGameOver) return;
 
     const { width, height } = this.scale;
-    const groundY = height * debugConfig.groundLevel;
-    const targetY = height * debugConfig.patriotY;
+    const groundY = height * gameConfig.groundLevel;
+    const targetY = height * gameConfig.patriotY;
 
     // Update alive budgies cache only when needed (max once per 100ms)
     this.lastBudgieCacheUpdate += delta;
@@ -621,17 +597,17 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Update player position (scale set only once in create)
-    this.player.x = debugConfig.patriotX;
+    this.player.x = gameConfig.patriotX;
 
     // Parallax scroll
-    const base = delta * debugConfig.bgSpeed;
+    const base = delta * gameConfig.bgSpeed;
     const speeds = [0.1, 0.2, 0.4, 0.6, 0.8, 1.0];
     for (let i = 0; i < this.bgLayers.length; i++) {
       this.bgLayers[i].tilePositionX += base * speeds[i];
     }
 
     // Player movement
-    const moveSpeed = debugConfig.moveSpeed;
+    const moveSpeed = gameConfig.moveSpeed;
     const targetDirection = this.player.getData('targetDirection') as number;
 
     if (this.cursors?.up?.isDown) {
@@ -645,7 +621,7 @@ export default class GameScene extends Phaser.Scene {
     } else {
       const diff = targetY - this.player.y;
       if (Math.abs(diff) > 5) {
-        this.player.setVelocityY(Math.sign(diff) * debugConfig.gravitySpeed);
+        this.player.setVelocityY(Math.sign(diff) * gameConfig.gravitySpeed);
       } else {
         this.player.setVelocityY(0);
       }
@@ -669,7 +645,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Tilt bird
     const vy = this.player.body?.velocity.y ?? 0;
-    const targetAngle = (vy / moveSpeed) * debugConfig.maxTilt;
+    const targetAngle = (vy / moveSpeed) * gameConfig.maxTilt;
     this.player.angle = Phaser.Math.Linear(this.player.angle, targetAngle, 0.1);
 
     // Horizontal keyboard
@@ -682,18 +658,13 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Budgies (scale set only once in create, not every frame)
-    const budgieCenterY = height * debugConfig.budgieY;
+    const budgieCenterY = height * gameConfig.budgieY;
     for (const budgie of this.budgies) {
       if (!budgie.active) continue;
 
       const verticalOffset = budgie.getData('verticalOffset') as number;
-      budgie.x = debugConfig.budgieX;
-      budgie.y = budgieCenterY + verticalOffset * debugConfig.budgieSpacing;
-    }
-
-    // Update score position
-    if (this.scoreText) {
-      this.scoreText.setPosition(debugConfig.scoreX, debugConfig.scoreY);
+      budgie.x = gameConfig.budgieX;
+      budgie.y = budgieCenterY + verticalOffset * gameConfig.budgieSpacing;
     }
 
     // Track game time for progressive difficulty
@@ -854,7 +825,7 @@ export default class GameScene extends Phaser.Scene {
     const falcon = this.falconGroup.create(width + 80, spawnY, `falcon_${variantKey}_1`) as Phaser.Physics.Arcade.Sprite;
 
     falcon.setDepth(50);
-    falcon.setScale(debugConfig.birdScale * 0.9);
+    falcon.setScale(gameConfig.birdScale * 0.9);
     falcon.setFlipX(true);
     falcon.play(`falcon_${variantKey}_fly`);
 
@@ -969,7 +940,7 @@ export default class GameScene extends Phaser.Scene {
     const bat = this.batGroup.create(width + 80, spawnY, 'bat_fly_1') as Phaser.Physics.Arcade.Sprite;
 
     bat.setDepth(55);
-    bat.setScale(debugConfig.birdScale * 0.8);
+    bat.setScale(gameConfig.birdScale * 0.8);
     bat.setFlipX(true);
     bat.play('bat_fly');
 
@@ -1142,16 +1113,9 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Play poof sound
-    try {
-      if (this.sound.get('poof_sound')) {
-        this.sound.play('poof_sound', { volume: 0.6 });
-      } else {
-        // Sound not loaded yet, try to add and play
-        const poof = this.sound.add('poof_sound', { volume: 0.6 });
-        poof.play();
-      }
-    } catch (e) {
-      console.warn('Could not play poof sound:', e);
+    if (this.poofSound) {
+      this.poofSound.stop();
+      this.poofSound.play();
     }
 
     // Create explosion sprite at enemy position
@@ -1325,7 +1289,7 @@ export default class GameScene extends Phaser.Scene {
 
     bee.setActive(true);
     bee.setVisible(true);
-    bee.setScale(debugConfig.beeScale);
+    bee.setScale(gameConfig.beeScale);
     bee.setFlipX(true); // Flip to face left
     bee.setDepth(60);
     bee.play('bee_fly');
@@ -1347,11 +1311,6 @@ export default class GameScene extends Phaser.Scene {
   private triggerGameOver(): void {
     if (this.isGameOver) return;
     this.isGameOver = true;
-
-    // Hide pause overlay if visible
-    if (this.pauseOverlay) {
-      this.pauseOverlay.setVisible(false);
-    }
 
     // Stop the game music
     if (this.gameMusic) {
@@ -1391,79 +1350,4 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  private createPauseOverlay(): void {
-    const { width, height } = this.scale;
-    
-    this.pauseOverlay = this.add.container(0, 0);
-    this.pauseOverlay.setDepth(500);
-    this.pauseOverlay.setVisible(false);
-    
-    // Dark overlay
-    const darkBg = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.7);
-    
-    // Pause text
-    const pauseText = this.add.text(width / 2, height * 0.35, '⏸️ PAUSED', {
-      fontFamily: 'Arial Black',
-      fontSize: '48px',
-      color: '#FFFFFF',
-      stroke: '#000000',
-      strokeThickness: 4,
-    }).setOrigin(0.5);
-    
-    // Resume button
-    const resumeBtn = this.add.text(width / 2, height * 0.5, '▶️ RESUME', {
-      fontFamily: 'Arial Black',
-      fontSize: '28px',
-      color: '#00FF00',
-      stroke: '#000000',
-      strokeThickness: 3,
-      backgroundColor: '#004400',
-      padding: { x: 20, y: 10 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    
-    resumeBtn.on('pointerover', () => resumeBtn.setScale(1.1));
-    resumeBtn.on('pointerout', () => resumeBtn.setScale(1));
-    resumeBtn.on('pointerdown', () => this.togglePause());
-    
-    // Main Menu button
-    const menuBtn = this.add.text(width / 2, height * 0.65, '🏠 MAIN MENU', {
-      fontFamily: 'Arial Black',
-      fontSize: '24px',
-      color: '#FFAA00',
-      stroke: '#000000',
-      strokeThickness: 3,
-      backgroundColor: '#442200',
-      padding: { x: 15, y: 8 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    
-    menuBtn.on('pointerover', () => menuBtn.setScale(1.1));
-    menuBtn.on('pointerout', () => menuBtn.setScale(1));
-    menuBtn.on('pointerdown', () => {
-      if (this.gameMusic) this.gameMusic.stop();
-      this.scene.start('MainMenuScene');
-    });
-    
-    this.pauseOverlay.add([darkBg, pauseText, resumeBtn, menuBtn]);
-  }
-
-  private togglePause(): void {
-    if (this.isGameOver) return;
-    
-    this.isPaused = !this.isPaused;
-    this.pauseOverlay.setVisible(this.isPaused);
-    
-    if (this.isPaused) {
-      this.physics.pause();
-      this.anims.pauseAll();
-      if (this.gameMusic && (this.gameMusic as Phaser.Sound.WebAudioSound).isPlaying) {
-        (this.gameMusic as Phaser.Sound.WebAudioSound).pause();
-      }
-    } else {
-      this.physics.resume();
-      this.anims.resumeAll();
-      if (this.gameMusic) {
-        (this.gameMusic as Phaser.Sound.WebAudioSound).resume();
-      }
-    }
-  }
 }

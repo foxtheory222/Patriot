@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-// Icon position config - exposed to window for settings panel
+// Icon position config
 const iconConfig = {
   // Characters row
   patriotX: 260,
@@ -29,9 +29,6 @@ const iconConfig = {
   batScale: 0.06,
   batFlip: false,
 };
-
-// Expose to window for HTML controls
-(window as any).iconConfig = iconConfig;
 
 export default class InstructionsScene extends Phaser.Scene {
   private instructionsMusic!: Phaser.Sound.BaseSound;

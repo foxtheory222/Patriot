@@ -408,8 +408,17 @@ export default class GameOverScene extends Phaser.Scene {
 
   private saveGameStats(score: number): void {
     try {
-      const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') + 1;
-      const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') + score;
+      // Parse with NaN guards
+      let totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0');
+      let totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0');
+      
+      // Reset to 0 if NaN detected
+      if (isNaN(totalGames)) totalGames = 0;
+      if (isNaN(totalScore)) totalScore = 0;
+      
+      // Increment values
+      totalGames += 1;
+      totalScore += score;
       
       localStorage.setItem('patriot_total_games', totalGames.toString());
       localStorage.setItem('patriot_total_score', totalScore.toString());

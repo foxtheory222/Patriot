@@ -38,7 +38,7 @@ interface WeatherSystem {
   overlay: Phaser.GameObjects.Rectangle;
 
   // Rain
-  rainDrops: Phaser.GameObjects.Line[];
+  rainEmitter: Phaser.GameObjects.Particles.ParticleEmitter;
   rainIntensity: number; // 0..1
 
   // Lightning
@@ -176,7 +176,14 @@ export default class GameScene extends Phaser.Scene {
 
     // Sound effects
     this.load.audio('poof_sound', 'assets/music/poof-80161.mp3');
+    this.load.audio('poof_sound', 'assets/music/poof-80161.mp3');
     this.load.audio('dizzy_sound', 'assets/music/cartoon-spin-7120.mp3');
+
+    // Generate rain texture
+    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+    graphics.fillStyle(0xaaccff, 1);
+    graphics.fillRect(0, 0, 2, 15);
+    graphics.generateTexture('rain_drop', 2, 15);
   }
 
   create(): void {
@@ -497,7 +504,22 @@ export default class GameScene extends Phaser.Scene {
       darkness: 0,
       overlay: this.nightOverlay,
 
-      rainDrops: [],
+      darkness: 0,
+      overlay: this.nightOverlay,
+
+      rainEmitter: this.add.particles(0, 0, 'rain_drop', {
+        x: { min: 0, max: width },
+        y: -50,
+        quantity: 1,
+        frequency: 50,
+        angle: { min: 85, max: 95 },
+        speedY: { min: 600, max: 900 },
+        speedX: { min: -20, max: 20 },
+        lifespan: 1500,
+        scale: { min: 0.8, max: 1.2 },
+        alpha: { min: 0.4, max: 0.8 },
+        emitting: false,
+      }),
       rainIntensity: 0,
 
       lightningFlash,
@@ -594,6 +616,18 @@ export default class GameScene extends Phaser.Scene {
       loop: true,
       callback: () => this.spawnBee(),
     });
+
+    // Register shutdown handler
+    this.events.on('shutdown', this.shutdown, this);
+  }
+
+  private shutdown(): void {
+    // Clean up input listeners to prevent memory leaks
+    this.input.off('pointerdown');
+    this.input.off('pointerup');
+
+    // Remove shutdown listener
+    this.events.off('shutdown', this.shutdown, this);
   }
 
   update(_time: number, delta: number): void {
@@ -829,7 +863,15 @@ export default class GameScene extends Phaser.Scene {
     this.currentFalconVariant = (this.currentFalconVariant + 1) % 4;
 
     const spawnY = targetBudgie.y + Phaser.Math.Between(-80, 80);
-    const falcon = this.falconGroup.create(width + 80, spawnY, `falcon_${variantKey}_1`) as Phaser.Physics.Arcade.Sprite;
+
+    // Use object pooling: get or create
+    const falcon = this.falconGroup.get(width + 80, spawnY, `falcon_${variantKey}_1`) as Phaser.Physics.Arcade.Sprite;
+
+    if (!falcon) return;
+
+    falcon.setActive(true);
+    falcon.setVisible(true);
+    falcon.setTexture(`falcon_${variantKey}_1`); // Ensure correct texture if reused
 
     falcon.setDepth(50);
     falcon.setScale(gameConfig.birdScale * 0.9);
@@ -865,7 +907,7 @@ export default class GameScene extends Phaser.Scene {
       if (!targetBudgie || !targetBudgie.active) {
         falcon.setVelocity(-speed, 0);
         if (falcon.x < -100) {
-          falcon.destroy();
+          this.killEnemy(falcon);
         }
         continue;
       }
@@ -908,7 +950,7 @@ export default class GameScene extends Phaser.Scene {
         case 'escape': {
           falcon.setVelocity(-speed, -40);
           if (falcon.x < -100 || falcon.y < -80) {
-            falcon.destroy();
+            this.killEnemy(falcon);
           }
           break;
         }
@@ -948,7 +990,14 @@ export default class GameScene extends Phaser.Scene {
     const targetIndex = this.budgies.indexOf(targetBudgie);
 
     const spawnY = targetBudgie.y + Phaser.Math.Between(-40, 40);
-    const bat = this.batGroup.create(width + 80, spawnY, 'bat_fly_1') as Phaser.Physics.Arcade.Sprite;
+
+    // Use object pooling
+    const bat = this.batGroup.get(width + 80, spawnY, 'bat_fly_1') as Phaser.Physics.Arcade.Sprite;
+
+    if (!bat) return;
+
+    bat.setActive(true);
+    bat.setVisible(true);
 
     bat.setDepth(55);
     bat.setScale(gameConfig.birdScale * 0.8);
@@ -990,7 +1039,7 @@ export default class GameScene extends Phaser.Scene {
       if (!targetBudgie || !targetBudgie.active) {
         bat.setVelocity(-speed, 0);
         if (bat.x < -100) {
-          bat.destroy();
+          this.killEnemy(bat);
         }
         continue;
       }
@@ -1030,12 +1079,19 @@ export default class GameScene extends Phaser.Scene {
           }
 
           if (bat.x < -100) {
-            bat.destroy();
+            this.killEnemy(bat);
           }
           break;
         }
       }
     }
+  }
+
+  private killEnemy(enemy: Phaser.Physics.Arcade.Sprite): void {
+    enemy.setActive(false);
+    enemy.setVisible(false);
+    enemy.setPosition(2000, 0); // Move way off screen
+    enemy.setVelocity(0, 0);
   }
 
   private handlePatriotHitsFalcon(
@@ -1067,7 +1123,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Destroy the bee
     bee.destroy();
-    
+
     // Patriot dies!
     this.triggerGameOver();
   }
@@ -1114,7 +1170,7 @@ export default class GameScene extends Phaser.Scene {
         enemyTexture: enemy.texture.key,
         score: this.score,
       });
-      
+
       // Show floating score text
       const floatingText = this.add.text(enemy.x, enemy.y - 20, '+25', {
         fontFamily: 'Arial Black',
@@ -1123,7 +1179,7 @@ export default class GameScene extends Phaser.Scene {
         stroke: '#000000',
         strokeThickness: 3,
       }).setDepth(200);
-      
+
       this.tweens.add({
         targets: floatingText,
         y: enemy.y - 60,
@@ -1144,16 +1200,16 @@ export default class GameScene extends Phaser.Scene {
     const explosion = this.add.sprite(enemy.x, enemy.y, 'explode_1');
     explosion.setScale(enemy.scale * 1.2);
     explosion.setDepth(enemy.depth + 1);
-    
+
     // Play explosion animation
     explosion.play('enemy_explode');
-    
+
     // Hide original enemy immediately and destroy both after animation
     enemy.setVisible(false);
-    
+
     explosion.on('animationcomplete', () => {
       explosion.destroy();
-      enemy.destroy();
+      this.killEnemy(enemy);
     });
   }
 
@@ -1176,7 +1232,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Switch to hit animation immediately
     budgie.play('budgie_hit');
-    
+
     // Flash the budgie 3 times, then disappear
     this.flashBudgie(budgie, 0);
   }
@@ -1207,53 +1263,26 @@ export default class GameScene extends Phaser.Scene {
 
   private updateRain(delta: number, width: number, height: number): void {
     const w = this.weather;
-    const maxDrops = 100; // Limit for performance
-    const targetDrops = Math.min(maxDrops, Math.floor(100 * w.rainIntensity));
 
-    // Add drops until we reach target
-    while (w.rainDrops.length < targetDrops) {
-      const x = Phaser.Math.Between(0, width);
-      const y = Phaser.Math.Between(-50, 0);
-      const drop = this.add.line(0, 0, x, y, x - 3, y + 18, 0xaaccff, 0.6);
-      drop.setLineWidth(1);
-      drop.setDepth(102);
-      drop.setData('speed', Phaser.Math.Between(600, 1000));
-      w.rainDrops.push(drop);
-    }
-
-    // Remove extra drops if intensity went down
-    while (w.rainDrops.length > targetDrops) {
-      const drop = w.rainDrops.pop();
-      if (drop) drop.destroy();
-    }
-
-    // Move existing drops (optimized update)
-    const dt = delta * 0.001;
-    for (let i = w.rainDrops.length - 1; i >= 0; i--) {
-      const drop = w.rainDrops[i];
-      if (!drop || !drop.active) {
-        w.rainDrops.splice(i, 1);
-        continue;
+    if (w.rainIntensity <= 0.01) {
+      if (w.rainEmitter.emitting) {
+        w.rainEmitter.stop();
       }
-      
-      const speed = drop.getData('speed') as number;
-      const geom = drop.geom as Phaser.Geom.Line;
-      const dy = speed * dt;
-
-      geom.y1 += dy;
-      geom.y2 += dy;
-      geom.x1 -= dy * 0.1;
-      geom.x2 -= dy * 0.1;
-
-      if (geom.y1 > height) {
-        geom.x1 = Phaser.Math.Between(0, width);
-        geom.y1 = Phaser.Math.Between(-50, 0);
-        geom.x2 = geom.x1 - 3;
-        geom.y2 = geom.y1 + 18;
-      }
-
-      drop.setTo(geom.x1, geom.y1, geom.x2, geom.y2);
+      return;
     }
+
+    if (!w.rainEmitter.emitting) {
+      w.rainEmitter.start();
+    }
+
+    // Adjust frequency based on intensity (higher intensity = lower frequency value = more particles)
+    // Intensity 0.1 -> freq 100ms
+    // Intensity 1.0 -> freq 10ms
+    const freq = Phaser.Math.Linear(100, 10, w.rainIntensity);
+    w.rainEmitter.setFrequency(freq);
+
+    // Also adjust alpha to fade in/out
+    w.rainEmitter.setAlpha({ min: 0.4 * w.rainIntensity, max: 0.8 * w.rainIntensity });
   }
 
   private updateLightning(delta: number): void {
@@ -1285,10 +1314,7 @@ export default class GameScene extends Phaser.Scene {
 
   private clearRain(): void {
     const w = this.weather;
-    for (const drop of w.rainDrops) {
-      drop.destroy();
-    }
-    w.rainDrops = [];
+    w.rainEmitter.stop();
   }
 
   private setOverlay(alpha: number, color: number): void {
@@ -1301,7 +1327,7 @@ export default class GameScene extends Phaser.Scene {
 
     const { width } = this.scale;
     const targetBudgie = Phaser.Utils.Array.GetRandom(this.aliveBudgiesCache);
-    
+
     // Spawn off-screen right
     const spawnX = width + 50;
     const spawnY = targetBudgie.y;
@@ -1319,10 +1345,10 @@ export default class GameScene extends Phaser.Scene {
     const beeRadius = (bee.width * gameConfig.beeScale) * 0.4;
     bee.body?.setCircle(beeRadius);
     bee.body?.setOffset((bee.width - beeRadius * 2) / 2, (bee.height - beeRadius * 2) / 2);
-    
+
     // Move left towards budgies, speeding up over time
     bee.setVelocityX(-this.beeSpeed);
-    
+
     // Increase speed for next spawn (cap at 800)
     this.beeSpeed = Math.min(this.beeSpeed + 10, 800);
   }
@@ -1337,6 +1363,15 @@ export default class GameScene extends Phaser.Scene {
   private triggerGameOver(): void {
     if (this.isGameOver) return;
     this.isGameOver = true;
+
+    // CRITICAL: Pause physics to prevent post-game collisions
+    this.physics.pause();
+
+    // Stop all timers to prevent bee spawning during death animation
+    this.time.removeAllEvents();
+
+    // Disable all collision overlaps to prevent score changes
+    this.physics.world.colliders.destroy();
 
     // Stop the game music
     if (this.gameMusic) {
@@ -1357,7 +1392,7 @@ export default class GameScene extends Phaser.Scene {
     // After dizzy animation plays for a bit, play faint
     this.time.delayedCall(1500, () => {
       this.player.play('player_faint');
-      
+
       // After faint animation, fade out and go to game over
       this.player.once('animationcomplete', () => {
         this.cameras.main.fadeOut(800, 0, 0, 0);

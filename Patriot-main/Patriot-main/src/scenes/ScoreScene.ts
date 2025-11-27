@@ -102,11 +102,21 @@ export default class ScoreScene extends Phaser.Scene {
     }
 
     // Stats at bottom of card
-    const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0');
-    const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0');
+    const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') || 0;
+    const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') || 0;
+    
+    // Guard against NaN - if values are invalid, reset them
+    if (isNaN(totalGames) || isNaN(totalScore)) {
+      try {
+        localStorage.setItem('patriot_total_games', '0');
+        localStorage.setItem('patriot_total_score', '0');
+      } catch (e) {
+        console.warn('Failed to reset stats:', e);
+      }
+    }
     
     const statsY = cardY + cardHeight - 30;
-    this.add.text(width / 2, statsY, `Games: ${totalGames}  \u2022  Total Points: ${totalScore.toLocaleString()}`, {
+    this.add.text(width / 2, statsY, `Games: ${isNaN(totalGames) ? 0 : totalGames}  \u2022  Total Points: ${isNaN(totalScore) ? 0 : totalScore.toLocaleString()}`, {
       fontFamily: 'Arial',
       fontSize: '12px',
       color: '#666666',
@@ -133,27 +143,47 @@ export default class ScoreScene extends Phaser.Scene {
   }
 
   private getHighScores(): Array<{ name: string; score: number }> {
+    const defaultScores = [
+      { name: 'PATRIOT', score: 5000 },
+      { name: 'EAGLE', score: 4000 },
+      { name: 'MAPLE', score: 3000 },
+      { name: 'CANADA', score: 2000 },
+      { name: 'BUDGIE', score: 1000 },
+    ];
+    
     try {
       const scoresJson = localStorage.getItem('patriot_high_scores');
       if (!scoresJson) {
-        return [
-          { name: 'PATRIOT', score: 5000 },
-          { name: 'EAGLE', score: 4000 },
-          { name: 'MAPLE', score: 3000 },
-          { name: 'CANADA', score: 2000 },
-          { name: 'BUDGIE', score: 1000 },
-        ];
+        return defaultScores;
       }
-      return JSON.parse(scoresJson);
+      
+      const parsed = JSON.parse(scoresJson);
+      
+      // Validate that parsed data is an array
+      if (!Array.isArray(parsed)) {
+        console.warn('High scores data is not an array, resetting to defaults');
+        return defaultScores;
+      }
+      
+      // Validate each score entry and filter out invalid ones
+      const validScores = parsed.filter(entry => {
+        return entry && 
+               typeof entry === 'object' && 
+               typeof entry.name === 'string' && 
+               typeof entry.score === 'number' && 
+               !isNaN(entry.score);
+      });
+      
+      // If no valid scores, return defaults
+      if (validScores.length === 0) {
+        console.warn('No valid high scores found, using defaults');
+        return defaultScores;
+      }
+      
+      return validScores;
     } catch (e) {
       console.warn('Failed to load high scores from localStorage:', e);
-      return [
-        { name: 'PATRIOT', score: 5000 },
-        { name: 'EAGLE', score: 4000 },
-        { name: 'MAPLE', score: 3000 },
-        { name: 'CANADA', score: 2000 },
-        { name: 'BUDGIE', score: 1000 },
-      ];
+      return defaultScores;
     }
   }
 

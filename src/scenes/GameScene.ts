@@ -77,6 +77,8 @@ export default class GameScene extends Phaser.Scene {
   private baseBatSpawnRate = 7000; // Base spawn rate in ms
   private aliveBudgiesCache: Phaser.Physics.Arcade.Sprite[] = []; // Cache to avoid repeated filtering
   private lastBudgieCacheUpdate = 0; // Track when cache was last updated
+  private gameMusic!: Phaser.Sound.BaseSound;
+  private isGameOver = false;
 
   constructor() {
     super('GameScene');
@@ -151,10 +153,43 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('explode_3', 'animations/Explode/a3.png');
     this.load.image('explode_4', 'animations/Explode/a4.png');
     this.load.image('explode_5', 'animations/Explode/a5.png');
+
+    // Player Dizzy animation (8 frames)
+    this.load.image('player_dizzy_1', 'assets/player/Dizzy/frame-1.png');
+    this.load.image('player_dizzy_2', 'assets/player/Dizzy/frame-2.png');
+    this.load.image('player_dizzy_3', 'assets/player/Dizzy/frame-3.png');
+    this.load.image('player_dizzy_4', 'assets/player/Dizzy/frame-4.png');
+    this.load.image('player_dizzy_5', 'assets/player/Dizzy/frame-5.png');
+    this.load.image('player_dizzy_6', 'assets/player/Dizzy/frame-6.png');
+    this.load.image('player_dizzy_7', 'assets/player/Dizzy/frame-7.png');
+    this.load.image('player_dizzy_8', 'assets/player/Dizzy/frame-8.png');
+
+    // Player Faint animation (4 frames)
+    this.load.image('player_faint_1', 'assets/player/Faint/frame-1.png');
+    this.load.image('player_faint_2', 'assets/player/Faint/frame-2.png');
+    this.load.image('player_faint_3', 'assets/player/Faint/frame-3.png');
+    this.load.image('player_faint_4', 'assets/player/Faint/frame-4.png');
+
+    // Game music
+    this.load.audio('game_music', 'assets/music/gameMusic/xenostar2loop_.ogg');
+
+    // Sound effects
+    this.load.audio('poof_sound', 'music/poof-80161.mp3');
   }
 
   create(): void {
     const { width, height } = this.scale;
+
+    // Reset game state
+    this.score = 0;
+    this.gameTime = 0;
+    this.isGameOver = false;
+    this.beeSpeed = 200;
+    this.nextFalconSpawn = 2000;
+    this.nextBatSpawn = 0;
+    this.currentFalconVariant = 0;
+    this.bgLayers = [];
+    this.budgies = [];
 
     // === Parallax background layers ===
     const layerKeys = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'bg6'];
@@ -223,6 +258,36 @@ export default class GameScene extends Phaser.Scene {
         { key: 'explode_5' },
       ],
       frameRate: 12,
+      repeat: 0,
+    });
+
+    // === Player Dizzy animation ===
+    this.anims.create({
+      key: 'player_dizzy',
+      frames: [
+        { key: 'player_dizzy_1' },
+        { key: 'player_dizzy_2' },
+        { key: 'player_dizzy_3' },
+        { key: 'player_dizzy_4' },
+        { key: 'player_dizzy_5' },
+        { key: 'player_dizzy_6' },
+        { key: 'player_dizzy_7' },
+        { key: 'player_dizzy_8' },
+      ],
+      frameRate: 10,
+      repeat: -1,
+    });
+
+    // === Player Faint animation ===
+    this.anims.create({
+      key: 'player_faint',
+      frames: [
+        { key: 'player_faint_1' },
+        { key: 'player_faint_2' },
+        { key: 'player_faint_3' },
+        { key: 'player_faint_4' },
+      ],
+      frameRate: 8,
       repeat: 0,
     });
 
@@ -422,6 +487,9 @@ export default class GameScene extends Phaser.Scene {
       this.incrementScore(10);
     });
 
+    // Patriot hits bee -> Patriot dies!
+    this.physics.add.overlap(this.player, this.bees, this.handlePatriotHitsBee, undefined, this);
+
     // Score UI
     this.scoreText = this.add
       .text(debugConfig.scoreX, debugConfig.scoreY, 'Score: 0', {
@@ -431,6 +499,13 @@ export default class GameScene extends Phaser.Scene {
       })
       .setDepth(150)
       .setScrollFactor(0);
+
+    // Start game music
+    this.gameMusic = this.sound.add('game_music', { loop: true, volume: 0.4 });
+    this.gameMusic.play();
+
+    // Fade in
+    this.cameras.main.fadeIn(500, 0, 0, 0);
 
     // Spawn bees periodically in front of random budgies
     this.time.addEvent({
@@ -470,6 +545,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // Don't update if game is over
+    if (this.isGameOver) return;
+
     const { width, height } = this.scale;
     const groundY = height * debugConfig.groundLevel;
     const targetY = height * debugConfig.patriotY;
@@ -479,6 +557,12 @@ export default class GameScene extends Phaser.Scene {
     if (this.lastBudgieCacheUpdate > 100) {
       this.aliveBudgiesCache = this.budgies.filter((b) => b.active);
       this.lastBudgieCacheUpdate = 0;
+
+      // Check for game over - all budgies dead
+      if (this.aliveBudgiesCache.length === 0 && this.gameTime > 1000) {
+        this.triggerGameOver();
+        return;
+      }
     }
 
     // Update player position (scale set only once in create)
@@ -933,6 +1017,20 @@ export default class GameScene extends Phaser.Scene {
     this.playEnemyExplosion(bat);
   }
 
+  private handlePatriotHitsBee(
+    _playerObj: Phaser.GameObjects.GameObject,
+    beeObj: Phaser.GameObjects.GameObject
+  ): void {
+    const bee = beeObj as Phaser.Physics.Arcade.Sprite;
+    if (!bee.active || this.isGameOver) return;
+
+    // Destroy the bee
+    bee.destroy();
+    
+    // Patriot dies!
+    this.triggerGameOver();
+  }
+
   private handleFalconHitsBudgie(
     falconObj: Phaser.GameObjects.GameObject,
     budgieObj: Phaser.GameObjects.GameObject
@@ -963,6 +1061,9 @@ export default class GameScene extends Phaser.Scene {
     // Disable physics but keep sprite visible for explosion animation
     enemy.disableBody(true, false);
     enemy.setVelocity(0, 0);
+
+    // Play poof sound
+    this.sound.play('poof_sound', { volume: 0.5 });
 
     // Create explosion sprite at enemy position
     const explosion = this.add.sprite(enemy.x, enemy.y, 'explode_1');
@@ -1141,5 +1242,33 @@ export default class GameScene extends Phaser.Scene {
     if (this.scoreText) {
       this.scoreText.setText(`Score: ${this.score}`);
     }
+  }
+
+  private triggerGameOver(): void {
+    if (this.isGameOver) return;
+    this.isGameOver = true;
+
+    // Stop the game music
+    if (this.gameMusic) {
+      this.gameMusic.stop();
+    }
+
+    // Stop player movement and play dizzy animation
+    this.player.setVelocity(0, 0);
+    this.player.play('player_dizzy');
+
+    // After dizzy animation plays for a bit, play faint
+    this.time.delayedCall(1500, () => {
+      this.player.play('player_faint');
+      
+      // After faint animation, fade out and go to game over
+      this.player.once('animationcomplete', () => {
+        this.cameras.main.fadeOut(800, 0, 0, 0);
+        
+        this.time.delayedCall(800, () => {
+          this.scene.start('GameOverScene', { score: this.score });
+        });
+      });
+    });
   }
 }

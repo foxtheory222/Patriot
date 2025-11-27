@@ -279,6 +279,110 @@
     </div>
   </div>
 
+  <!-- Instructions Icons Controls -->
+  <div class="section">
+    <div class="section-title">📋 Instructions Icons (Characters)</div>
+    <div class="control-group">
+      <label>Patriot X</label>
+      <input type="range" id="patriotIconX" min="0" max="1000" step="1" value="90">
+      <span class="value" id="patriotIconXVal">90</span>
+    </div>
+    <div class="control-group">
+      <label>Patriot Y</label>
+      <input type="range" id="patriotIconY" min="0" max="600" step="1" value="222">
+      <span class="value" id="patriotIconYVal">222</span>
+    </div>
+    <div class="control-group">
+      <label>Patriot Scale</label>
+      <input type="range" id="patriotIconScale" min="0.01" max="0.15" step="0.005" value="0.04">
+      <span class="value" id="patriotIconScaleVal">0.04</span>
+    </div>
+    <div class="control-group">
+      <label>Patriot Flip</label>
+      <input type="checkbox" id="patriotIconFlip">
+    </div>
+    <div class="control-group">
+      <label>Budgie X</label>
+      <input type="range" id="budgieIconX" min="0" max="1000" step="1" value="180">
+      <span class="value" id="budgieIconXVal">180</span>
+    </div>
+    <div class="control-group">
+      <label>Budgie Y</label>
+      <input type="range" id="budgieIconY" min="0" max="600" step="1" value="222">
+      <span class="value" id="budgieIconYVal">222</span>
+    </div>
+    <div class="control-group">
+      <label>Budgie Scale</label>
+      <input type="range" id="budgieIconScale" min="0.01" max="0.1" step="0.005" value="0.02">
+      <span class="value" id="budgieIconScaleVal">0.02</span>
+    </div>
+    <div class="control-group">
+      <label>Budgie Flip</label>
+      <input type="checkbox" id="budgieIconFlip">
+    </div>
+    <div class="control-group">
+      <label>Bee X</label>
+      <input type="range" id="beeIconX" min="0" max="1000" step="1" value="270">
+      <span class="value" id="beeIconXVal">270</span>
+    </div>
+    <div class="control-group">
+      <label>Bee Y</label>
+      <input type="range" id="beeIconY" min="0" max="600" step="1" value="222">
+      <span class="value" id="beeIconYVal">222</span>
+    </div>
+    <div class="control-group">
+      <label>Bee Scale</label>
+      <input type="range" id="beeIconScale" min="0.01" max="0.1" step="0.005" value="0.025">
+      <span class="value" id="beeIconScaleVal">0.025</span>
+    </div>
+    <div class="control-group">
+      <label>Bee Flip</label>
+      <input type="checkbox" id="beeIconFlip">
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📋 Instructions Icons (Enemies)</div>
+    <div class="control-group">
+      <label>Falcon X</label>
+      <input type="range" id="falconIconX" min="0" max="1000" step="1" value="119">
+      <span class="value" id="falconIconXVal">119</span>
+    </div>
+    <div class="control-group">
+      <label>Falcon Y</label>
+      <input type="range" id="falconIconY" min="0" max="600" step="1" value="322">
+      <span class="value" id="falconIconYVal">322</span>
+    </div>
+    <div class="control-group">
+      <label>Falcon Scale</label>
+      <input type="range" id="falconIconScale" min="0.01" max="0.15" step="0.005" value="0.04">
+      <span class="value" id="falconIconScaleVal">0.04</span>
+    </div>
+    <div class="control-group">
+      <label>Falcon Flip</label>
+      <input type="checkbox" id="falconIconFlip" checked>
+    </div>
+    <div class="control-group">
+      <label>Bat X</label>
+      <input type="range" id="batIconX" min="0" max="1000" step="1" value="241">
+      <span class="value" id="batIconXVal">241</span>
+    </div>
+    <div class="control-group">
+      <label>Bat Y</label>
+      <input type="range" id="batIconY" min="0" max="600" step="1" value="322">
+      <span class="value" id="batIconYVal">322</span>
+    </div>
+    <div class="control-group">
+      <label>Bat Scale</label>
+      <input type="range" id="batIconScale" min="0.01" max="0.15" step="0.005" value="0.04">
+      <span class="value" id="batIconScaleVal">0.04</span>
+    </div>
+    <div class="control-group">
+      <label>Bat Flip</label>
+      <input type="checkbox" id="batIconFlip" checked>
+    </div>
+  </div>
+
   <!-- Config Display -->
   <div id="config-display">
     <div class="title">📋 Current Config (copy me!)</div>
@@ -295,6 +399,33 @@
           'maxTilt', 'groundLevel', 'patriotX', 'patriotY', 'budgieScale', 'budgieSpacing', 'budgieX', 'budgieY',
           'beeScale', 'scoreX', 'scoreY'
         ];
+
+        // Icon config mappings (slider id -> iconConfig key)
+        const iconSliderMappings = {
+          'patriotIconX': 'patriotX',
+          'patriotIconY': 'patriotY',
+          'patriotIconScale': 'patriotScale',
+          'budgieIconX': 'budgieX',
+          'budgieIconY': 'budgieY',
+          'budgieIconScale': 'budgieScale',
+          'beeIconX': 'beeX',
+          'beeIconY': 'beeY',
+          'beeIconScale': 'beeScale',
+          'falconIconX': 'falconX',
+          'falconIconY': 'falconY',
+          'falconIconScale': 'falconScale',
+          'batIconX': 'batX',
+          'batIconY': 'batY',
+          'batIconScale': 'batScale',
+        };
+
+        const iconCheckboxMappings = {
+          'patriotIconFlip': 'patriotFlip',
+          'budgieIconFlip': 'budgieFlip',
+          'beeIconFlip': 'beeFlip',
+          'falconIconFlip': 'falconFlip',
+          'batIconFlip': 'batFlip',
+        };
         
         // Wait for game config to be available
         const checkConfig = setInterval(() => {
@@ -302,8 +433,9 @@
           clearInterval(checkConfig);
           
           const config = window.gameConfig;
+          const iconConfig = window.iconConfig;
           
-          // Initialize sliders with current values
+          // Initialize game sliders with current values
           sliderIds.forEach(id => {
             const slider = popup.document.getElementById(id);
             const valDisplay = popup.document.getElementById(id + 'Val');
@@ -315,12 +447,44 @@
                 const val = parseFloat(slider.value);
                 config[id] = val;
                 if (valDisplay) valDisplay.textContent = val;
-                updatePopupConfigDisplay(popup, config);
+                updatePopupConfigDisplay(popup, config, iconConfig);
               });
             }
           });
+
+          // Initialize icon sliders
+          if (iconConfig) {
+            Object.entries(iconSliderMappings).forEach(([sliderId, configKey]) => {
+              const slider = popup.document.getElementById(sliderId);
+              const valDisplay = popup.document.getElementById(sliderId + 'Val');
+              if (slider && iconConfig[configKey] !== undefined) {
+                slider.value = iconConfig[configKey];
+                if (valDisplay) valDisplay.textContent = iconConfig[configKey];
+                
+                slider.addEventListener('input', () => {
+                  const val = parseFloat(slider.value);
+                  iconConfig[configKey] = val;
+                  if (valDisplay) valDisplay.textContent = val;
+                  updatePopupConfigDisplay(popup, config, iconConfig);
+                });
+              }
+            });
+
+            // Initialize icon checkboxes
+            Object.entries(iconCheckboxMappings).forEach(([checkboxId, configKey]) => {
+              const checkbox = popup.document.getElementById(checkboxId);
+              if (checkbox && iconConfig[configKey] !== undefined) {
+                checkbox.checked = iconConfig[configKey];
+                
+                checkbox.addEventListener('change', () => {
+                  iconConfig[configKey] = checkbox.checked;
+                  updatePopupConfigDisplay(popup, config, iconConfig);
+                });
+              }
+            });
+          }
           
-          updatePopupConfigDisplay(popup, config);
+          updatePopupConfigDisplay(popup, config, iconConfig);
         }, 100);
         
         // Copy button
@@ -335,8 +499,9 @@
         };
       }
       
-      function updatePopupConfigDisplay(popup, config) {
-        const text = `{
+      function updatePopupConfigDisplay(popup, config, iconConfig) {
+        let text = `// Game Config
+{
   bgSpeed: ${config.bgSpeed},
   moveSpeed: ${config.moveSpeed},
   gravitySpeed: ${config.gravitySpeed},
@@ -354,6 +519,39 @@
   scoreX: ${config.scoreX},
   scoreY: ${config.scoreY},
 }`;
+        
+        if (iconConfig) {
+          text += `
+
+// Icon Config (Instructions)
+{
+  patriotX: ${iconConfig.patriotX},
+  patriotY: ${iconConfig.patriotY},
+  patriotScale: ${iconConfig.patriotScale},
+  patriotFlip: ${iconConfig.patriotFlip},
+
+  budgieX: ${iconConfig.budgieX},
+  budgieY: ${iconConfig.budgieY},
+  budgieScale: ${iconConfig.budgieScale},
+  budgieFlip: ${iconConfig.budgieFlip},
+
+  beeX: ${iconConfig.beeX},
+  beeY: ${iconConfig.beeY},
+  beeScale: ${iconConfig.beeScale},
+  beeFlip: ${iconConfig.beeFlip},
+
+  falconX: ${iconConfig.falconX},
+  falconY: ${iconConfig.falconY},
+  falconScale: ${iconConfig.falconScale},
+  falconFlip: ${iconConfig.falconFlip},
+
+  batX: ${iconConfig.batX},
+  batY: ${iconConfig.batY},
+  batScale: ${iconConfig.batScale},
+  batFlip: ${iconConfig.batFlip},
+}`;
+        }
+        
         const el = popup.document.getElementById('config-text');
         if (el) el.textContent = text;
       }

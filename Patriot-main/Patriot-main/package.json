@@ -8,13 +8,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "npm run test:compile && node --test .tmp-tests/tests/telemetry.test.js",
-    "test:compile": "tsc --project tsconfig.test.json"
+    "test:compile": "tsc --project tsconfig.test.json",
+    "optimize:images": "imagemin public/assets/**/*.png --out-dir=public/assets --plugin=pngquant"
   },
   "dependencies": {
     "phaser": "^3.87.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "imagemin-cli": "^8.0.0",
+    "imagemin-pngquant": "^10.0.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.11"
   }

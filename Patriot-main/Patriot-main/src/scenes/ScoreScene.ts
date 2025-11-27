@@ -9,10 +9,16 @@ export default class ScoreScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('score_bg', 'assets/scenes/mainMenu/scoreScreen.png');
-    this.load.audio('score_music', 'assets/music/hiScore/sad_game_over.ogg');
+    this.load.audio('score_music', [
+      'assets/music/hiScore/sad_game_over.mp3',
+      'assets/music/hiScore/sad_game_over.ogg'
+    ]);
 
     // Button click sound
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
+    this.load.audio('click_sound', [
+      'assets/music/mouse-click-290204.mp3',
+      'assets/music/mouse-click-290204.ogg'
+    ]);
   }
 
   create(): void {
@@ -102,17 +108,28 @@ export default class ScoreScene extends Phaser.Scene {
     }
 
     // Stats at bottom of card
-    const totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') || 0;
-    const totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') || 0;
+    let totalGames = 0;
+    let totalScore = 0;
     
-    // Guard against NaN - if values are invalid, reset them
-    if (isNaN(totalGames) || isNaN(totalScore)) {
-      try {
-        localStorage.setItem('patriot_total_games', '0');
-        localStorage.setItem('patriot_total_score', '0');
-      } catch (e) {
-        console.warn('Failed to reset stats:', e);
+    try {
+      totalGames = parseInt(localStorage.getItem('patriot_total_games') || '0') || 0;
+      totalScore = parseInt(localStorage.getItem('patriot_total_score') || '0') || 0;
+      
+      // Guard against NaN - if values are invalid, reset them
+      if (isNaN(totalGames) || isNaN(totalScore)) {
+        totalGames = 0;
+        totalScore = 0;
+        try {
+          localStorage.setItem('patriot_total_games', '0');
+          localStorage.setItem('patriot_total_score', '0');
+        } catch (e) {
+          console.warn('Failed to reset stats:', e);
+        }
       }
+    } catch (e) {
+      console.warn('Failed to read stats from localStorage:', e);
+      totalGames = 0;
+      totalScore = 0;
     }
     
     const statsY = cardY + cardHeight - 30;

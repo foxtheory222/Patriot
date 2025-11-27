@@ -6,6 +6,8 @@ export default class GameOverScene extends Phaser.Scene {
   private enemiesDefeated: number = 0;
   private survivalTime: number = 0;
   private budgiesSaved: number = 0;
+  private activeInputElement: HTMLInputElement | null = null;
+  private inputCleanupCallback: (() => void) | null = null;
 
   constructor() {
     super('GameOverScene');
@@ -20,12 +22,21 @@ export default class GameOverScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('gameover_bg', 'assets/scenes/gameOver/gameOver.png');
-    this.load.audio('gameover_music', 'assets/music/hiScore/sad_game_over.ogg');
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
+    this.load.audio('gameover_music', [
+      'assets/music/hiScore/sad_game_over.mp3',
+      'assets/music/hiScore/sad_game_over.ogg'
+    ]);
+    this.load.audio('click_sound', [
+      'assets/music/mouse-click-290204.mp3',
+      'assets/music/mouse-click-290204.ogg'
+    ]);
   }
 
   create(): void {
     const { width, height } = this.scale;
+
+    // Register shutdown cleanup for modal inputs
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
 
     // Try to load game over background, fallback to dark screen
     try {
@@ -261,20 +272,11 @@ export default class GameOverScene extends Phaser.Scene {
 
       // Check if this score makes the top 10
       if (highScores.length < 10 || score > highScores[highScores.length - 1].score) {
-        // Get player name from localStorage or prompt
+        // Get player name from localStorage
         let playerName = localStorage.getItem('patriot_player_name') || '';
         
-        // If no saved name, prompt for one
-        if (!playerName) {
-          this.promptForPlayerName(score, highScores);
-          return true;
-        }
-        
-        // Add new score with saved name
-        highScores.push({ name: playerName, score: score });
-        highScores.sort((a, b) => b.score - a.score);
-        highScores = highScores.slice(0, 10);
-        localStorage.setItem('patriot_high_scores', JSON.stringify(highScores));
+        // Always prompt for name on high score, pre-filling with saved name
+        this.promptForPlayerName(score, highScores, playerName);
         return true;
       }
       return false;
@@ -284,7 +286,7 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  private promptForPlayerName(score: number, highScores: Array<{ name: string; score: number }>): void {
+  private promptForPlayerName(score: number, highScores: Array<{ name: string; score: number }>, defaultName: string = ''): void {
     const { width, height } = this.scale;
     
     // Create modal overlay
@@ -293,76 +295,189 @@ export default class GameOverScene extends Phaser.Scene {
     modalOverlay.setInteractive();
     
     // Create modal panel
-    const modalPanel = this.add.rectangle(width / 2, height / 2, 400, 250, 0x1a1a2e, 1);
+    const modalPanel = this.add.rectangle(width / 2, height / 2 + 30, 420, 420, 0x1a1a2e, 1);
     modalPanel.setDepth(2001);
     modalPanel.setStrokeStyle(3, 0xFFD700);
     
     // Title
-    const titleText = this.add.text(width / 2, height / 2 - 80, 'NEW HIGH SCORE!', {
+    const titleText = this.add.text(width / 2, height / 2 - 100, 'NEW HIGH SCORE!', {
       fontFamily: 'Arial Black',
       fontSize: '24px',
       color: '#FFD700',
     }).setOrigin(0.5).setDepth(2002);
     
     // Instruction
-    const instructionText = this.add.text(width / 2, height / 2 - 40, 'Enter your name:', {
+    const instructionText = this.add.text(width / 2, height / 2 - 60, 'Tap letters to enter name:', {
       fontFamily: 'Arial',
       fontSize: '16px',
       color: '#FFFFFF',
     }).setOrigin(0.5).setDepth(2002);
     
     // Input field background
-    const inputBg = this.add.rectangle(width / 2, height / 2, 300, 40, 0x333333, 1);
+    const inputBg = this.add.rectangle(width / 2, height / 2 - 20, 300, 40, 0x333333, 1);
     inputBg.setDepth(2002);
     inputBg.setStrokeStyle(2, 0x666666);
     
-    // Create HTML input element
-    const inputElement = document.createElement('input');
-    inputElement.type = 'text';
-    inputElement.maxLength = 12;
-    inputElement.placeholder = 'Your Name';
-    inputElement.style.position = 'absolute';
-    inputElement.style.left = `${width / 2 - 140}px`;
-    inputElement.style.top = `${height / 2 - 20}px`;
-    inputElement.style.width = '280px';
-    inputElement.style.height = '36px';
-    inputElement.style.fontSize = '18px';
-    inputElement.style.padding = '4px';
-    inputElement.style.border = '2px solid #666666';
-    inputElement.style.borderRadius = '4px';
-    inputElement.style.backgroundColor = '#333333';
-    inputElement.style.color = '#FFFFFF';
-    inputElement.style.textAlign = 'center';
-    inputElement.style.fontFamily = 'Arial';
-    inputElement.style.zIndex = '3000';
-    document.body.appendChild(inputElement);
-    inputElement.focus();
+    let playerName = defaultName || '';
+    const maxLength = 8;
     
-    // Display text (mirrors input)
-    const displayText = this.add.text(width / 2, height / 2, '', {
+    // Display text that shows current name with cursor
+    const displayText = this.add.text(width / 2, height / 2 - 20, playerName || '_', {
       fontFamily: 'Arial',
-      fontSize: '18px',
+      fontSize: '24px',
       color: '#FFFFFF',
     }).setOrigin(0.5).setDepth(2003);
     
-    // Update display text as user types
-    inputElement.addEventListener('input', () => {
-      displayText.setText(inputElement.value.toUpperCase());
+    // Blinking cursor effect
+    const cursorTimer = this.time.addEvent({
+      delay: 500,
+      loop: true,
+      callback: () => {
+        if (playerName.length < maxLength) {
+          const showCursor = displayText.text.endsWith('_');
+          displayText.setText(playerName + (showCursor ? '' : '_'));
+        }
+      }
     });
     
-    // Submit button
-    const submitBtn = this.add.rectangle(width / 2, height / 2 + 60, 150, 40, 0x00aa00, 1);
-    submitBtn.setDepth(2002);
-    submitBtn.setInteractive({ useHandCursor: true });
+    // Create on-screen keyboard for mobile
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const keyboardContainer = this.add.container(width / 2, height / 2 + 60);
+    keyboardContainer.setDepth(2002);
     
-    const submitText = this.add.text(width / 2, height / 2 + 60, 'SUBMIT', {
-      fontFamily: 'Arial Black',
-      fontSize: '18px',
+    const keySize = 28;
+    const keySpacing = 32;
+    const keysPerRow = 9;
+    
+    letters.split('').forEach((letter, index) => {
+      const row = Math.floor(index / keysPerRow);
+      const col = index % keysPerRow;
+      const rowOffset = row === 2 ? keySpacing / 2 : 0; // Center last row
+      const x = (col - keysPerRow / 2 + 0.5) * keySpacing + rowOffset;
+      const y = row * (keySize + 6);
+      
+      const keyBg = this.add.rectangle(x, y, keySize, keySize, 0x444444, 1);
+      keyBg.setStrokeStyle(1, 0x666666);
+      keyBg.setInteractive({ useHandCursor: true });
+      
+      const keyText = this.add.text(x, y, letter, {
+        fontFamily: 'Arial',
+        fontSize: '16px',
+        color: '#FFFFFF',
+      }).setOrigin(0.5);
+      
+      keyBg.on('pointerdown', () => {
+        keyBg.setFillStyle(0x666666);
+        if (playerName.length < maxLength) {
+          playerName += letter;
+          displayText.setText(playerName);
+        }
+      });
+      keyBg.on('pointerup', () => keyBg.setFillStyle(0x444444));
+      keyBg.on('pointerout', () => keyBg.setFillStyle(0x444444));
+      
+      keyboardContainer.add([keyBg, keyText]);
+    });
+    
+    // Backspace button
+    const backspaceBg = this.add.rectangle(keysPerRow / 2 * keySpacing + 20, 2 * (keySize + 6), 50, keySize, 0x993333, 1);
+    backspaceBg.setStrokeStyle(1, 0xcc4444);
+    backspaceBg.setInteractive({ useHandCursor: true });
+    const backspaceText = this.add.text(keysPerRow / 2 * keySpacing + 20, 2 * (keySize + 6), '←', {
+      fontFamily: 'Arial',
+      fontSize: '20px',
       color: '#FFFFFF',
-    }).setOrigin(0.5).setDepth(2003);
+    }).setOrigin(0.5);
+    
+    backspaceBg.on('pointerdown', () => {
+      backspaceBg.setFillStyle(0xbb4444);
+      if (playerName.length > 0) {
+        playerName = playerName.slice(0, -1);
+        displayText.setText(playerName || '_');
+      }
+    });
+    backspaceBg.on('pointerup', () => backspaceBg.setFillStyle(0x993333));
+    backspaceBg.on('pointerout', () => backspaceBg.setFillStyle(0x993333));
+    
+    keyboardContainer.add([backspaceBg, backspaceText]);
+    
+    // Also support physical keyboard
+    const keyboardHandler = (event: KeyboardEvent) => {
+      const key = event.key.toUpperCase();
+      if (key.length === 1 && /[A-Z]/.test(key) && playerName.length < maxLength) {
+        playerName += key;
+        displayText.setText(playerName);
+      } else if (event.key === 'Backspace' && playerName.length > 0) {
+        playerName = playerName.slice(0, -1);
+        displayText.setText(playerName || '_');
+      } else if (event.key === 'Enter' && playerName.length > 0) {
+        window.removeEventListener('keydown', keyboardHandler);
+        submitScore();
+      }
+    };
+    window.addEventListener('keydown', keyboardHandler);
+    
+    // Submit button - modern styled
+    const submitBtnContainer = this.add.container(width / 2, height / 2 + 185);
+    submitBtnContainer.setDepth(2002);
+    
+    // Button shadow
+    const submitShadow = this.add.rectangle(0, 3, 160, 44, 0x000000, 0.4);
+    
+    // Button body
+    const submitBtn = this.add.graphics();
+    submitBtn.fillStyle(0x00aa00, 1);
+    submitBtn.fillRoundedRect(-80, -22, 160, 44, 12);
+    
+    // Top highlight for 3D effect
+    const submitHighlight = this.add.graphics();
+    submitHighlight.fillStyle(0xffffff, 0.2);
+    submitHighlight.fillRoundedRect(-76, -18, 152, 18, 8);
+    
+    // Border
+    const submitBorder = this.add.graphics();
+    submitBorder.lineStyle(2, 0x00ff00, 0.5);
+    submitBorder.strokeRoundedRect(-80, -22, 160, 44, 12);
+    
+    // Text shadow
+    const submitTextShadow = this.add.text(1, 1, 'SUBMIT', {
+      fontFamily: 'Arial Black',
+      fontSize: '20px',
+      color: '#000000',
+    }).setOrigin(0.5).setAlpha(0.5);
+    
+    // Button text
+    const submitText = this.add.text(0, 0, 'SUBMIT', {
+      fontFamily: 'Arial Black',
+      fontSize: '20px',
+      color: '#FFFFFF',
+    }).setOrigin(0.5);
+    
+    submitBtnContainer.add([submitShadow, submitBtn, submitHighlight, submitBorder, submitTextShadow, submitText]);
+    submitBtnContainer.setSize(160, 44);
+    submitBtnContainer.setInteractive({ useHandCursor: true });
+    
+    const cleanupModal = () => {
+      // Remove keyboard listener
+      window.removeEventListener('keydown', keyboardHandler);
+      // Stop cursor timer
+      cursorTimer.destroy();
+      // Destroy Phaser objects
+      modalOverlay.destroy();
+      modalPanel.destroy();
+      titleText.destroy();
+      instructionText.destroy();
+      inputBg.destroy();
+      displayText.destroy();
+      keyboardContainer.destroy();
+      submitBtnContainer.destroy();
+    };
     
     const submitScore = () => {
-      const playerName = inputElement.value.trim().toUpperCase() || 'PLAYER';
+      // Require at least 1 character
+      if (playerName.length === 0) {
+        playerName = 'AAA';
+      }
       
       try {
         // Save player name for future games
@@ -378,32 +493,27 @@ export default class GameOverScene extends Phaser.Scene {
       }
       
       // Clean up
-      document.body.removeChild(inputElement);
-      modalOverlay.destroy();
-      modalPanel.destroy();
-      titleText.destroy();
-      instructionText.destroy();
-      inputBg.destroy();
-      displayText.destroy();
-      submitBtn.destroy();
-      submitText.destroy();
+      cleanupModal();
     };
     
     // Submit on button click
-    submitBtn.on('pointerover', () => {
-      submitBtn.setFillStyle(0x00ff00);
+    submitBtnContainer.on('pointerover', () => {
+      this.tweens.add({ targets: submitBtnContainer, scaleX: 1.05, scaleY: 1.05, duration: 80, ease: 'Sine.easeOut' });
     });
-    submitBtn.on('pointerout', () => {
-      submitBtn.setFillStyle(0x00aa00);
+    submitBtnContainer.on('pointerout', () => {
+      this.tweens.add({ targets: submitBtnContainer, scaleX: 1, scaleY: 1, duration: 80, ease: 'Sine.easeOut' });
     });
-    submitBtn.on('pointerdown', submitScore);
-    
-    // Submit on Enter key
-    inputElement.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        submitScore();
-      }
+    submitBtnContainer.on('pointerdown', () => {
+      submitBtnContainer.setScale(0.95);
     });
+    submitBtnContainer.on('pointerup', submitScore);
+  }
+  
+  shutdown(): void {
+    // Clean up any active input modal
+    if (this.inputCleanupCallback) {
+      this.inputCleanupCallback();
+    }
   }
 
   private saveGameStats(score: number): void {

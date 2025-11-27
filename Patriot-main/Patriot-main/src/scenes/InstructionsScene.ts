@@ -40,7 +40,10 @@ export default class InstructionsScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('instructions_bg', 'assets/scenes/instructions/instructions.png');
-    this.load.audio('instructions_music', 'assets/music/instructions/awesomeness.ogg');
+    this.load.audio('instructions_music', [
+      'assets/music/instructions/awesomeness.mp3',
+      'assets/music/instructions/awesomeness.ogg'
+    ]);
     
     // Load sprites for visuals
     this.load.image('player_fly_1', 'assets/player/flying-1.png');
@@ -50,7 +53,10 @@ export default class InstructionsScene extends Phaser.Scene {
     this.load.image('bee_1', 'assets/Bee/frame-1.png');
 
     // Button click sound
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
+    this.load.audio('click_sound', [
+      'assets/music/mouse-click-290204.mp3',
+      'assets/music/mouse-click-290204.ogg'
+    ]);
   }
 
   create(): void {

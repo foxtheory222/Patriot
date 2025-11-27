@@ -10,9 +10,17 @@
     "test": "npm run test:compile && node --test .tmp-tests/tests/telemetry.test.js",
     "test:compile": "tsc --project tsconfig.test.json",
     "optimize:images": "imagemin public/assets/**/*.png --out-dir=public/assets --plugin=pngquant",
-    "optimize:audio": "node optimize-audio.cjs"
+    "optimize:audio": "node optimize-audio.cjs",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync:ios": "npm run build && npx cap sync ios",
+    "cap:sync:android": "npm run build && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/device": "^7.0.2",
+    "@capacitor/ios": "^7.4.4",
     "phaser": "^3.87.0"
   },
   "devDependencies": {

@@ -80,6 +80,11 @@ export default class GameScene extends Phaser.Scene {
   private enemiesDefeated = 0; // Track enemies defeated for stats
   private startTime = 0; // Track game start time
   private poofSound!: Phaser.Sound.BaseSound;
+  private dizzySound!: Phaser.Sound.BaseSound;
+  private isInvincible = false; // Debug mode: invincibility
+  private invincibleButton!: Phaser.GameObjects.Container;
+  private debugRainOn = false; // Debug mode: force rain
+  private rainButton!: Phaser.GameObjects.Container;
 
   // Touch feedback
   private touchZoneTop!: Phaser.GameObjects.Rectangle;
@@ -175,22 +180,32 @@ export default class GameScene extends Phaser.Scene {
     this.load.image('player_faint_3', 'assets/player/Faint/frame-3.png');
     this.load.image('player_faint_4', 'assets/player/Faint/frame-4.png');
 
-    // Game music
-    this.load.audio('game_music', 'assets/music/gameMusic/xenostar2loop_.ogg');
+    // Game music - NOTE: MP3 version needed for iOS! Convert xenostar2loop_.ogg to .mp3
+    this.load.audio('game_music', [
+      'assets/music/gameMusic/xenostar2loop_.mp3',
+      'assets/music/gameMusic/xenostar2loop_.ogg'
+    ]);
 
     // Sound effects
-    this.load.audio('poof_sound', 'assets/music/poof-80161.ogg');
-    this.load.audio('dizzy_sound', 'assets/music/cartoon-spin-7120.ogg');
-
-    // Generate rain texture
-    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-    graphics.fillStyle(0xaaccff, 1);
-    graphics.fillRect(0, 0, 2, 15);
-    graphics.generateTexture('rain_drop', 2, 15);
+    this.load.audio('poof_sound', [
+      'assets/music/poof-80161.mp3',
+      'assets/music/poof-80161.ogg'
+    ]);
+    this.load.audio('dizzy_sound', [
+      'assets/music/cartoon-spin-7120.mp3',
+      'assets/music/cartoon-spin-7120.ogg'
+    ]);
   }
 
   create(): void {
     const { width, height } = this.scale;
+
+    // Generate rain texture (must be in create, not preload)
+    const rainGraphics = this.make.graphics({ x: 0, y: 0 });
+    rainGraphics.fillStyle(0xaaccff, 1);
+    rainGraphics.fillRect(0, 0, 2, 12);
+    rainGraphics.generateTexture('rain_drop', 2, 12);
+    rainGraphics.destroy();
 
     // Reset game state
     this.score = 0;
@@ -324,7 +339,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.play('player_fly');
     this.player.setData('targetDirection', 0);
     // Resize hitbox to match scaled sprite (using circle for better gameplay)
-    const playerRadius = (this.player.width * gameConfig.birdScale) * 0.4;
+    const playerRadius = this.player.width * 0.4;
     this.player.body?.setCircle(playerRadius);
     this.player.body?.setOffset((this.player.width - playerRadius * 2) / 2, (this.player.height - playerRadius * 2) / 2);
 
@@ -341,7 +356,7 @@ export default class GameScene extends Phaser.Scene {
       budgie.play('budgie_fly');
       budgie.setData('verticalOffset', verticalOffsets[i]);
       // Resize hitbox to match scaled sprite
-      const budgieRadius = (budgie.width * gameConfig.budgieScale) * 0.4;
+      const budgieRadius = budgie.width * 0.4;
       budgie.body?.setCircle(budgieRadius);
       budgie.body?.setOffset((budgie.width - budgieRadius * 2) / 2, (budgie.height - budgieRadius * 2) / 2);
       this.budgies.push(budgie);
@@ -511,7 +526,7 @@ export default class GameScene extends Phaser.Scene {
       state: 'day',
       stateTimer: 0,
 
-      // Slightly shorter durations to make the cycle visible faster during dev
+      // Normal durations for day/night cycle
       dayDuration: Phaser.Math.Between(40000, 60000),
       duskDuration: 15000,
       nightDuration: 20000,
@@ -521,24 +536,30 @@ export default class GameScene extends Phaser.Scene {
       darkness: 0,
       overlay: this.nightOverlay,
 
-      rainEmitter: this.add.particles(0, 0, 'rain_drop', {
-        x: { min: 0, max: width },
-        y: -50,
-        quantity: 1,
-        frequency: 50,
-        angle: { min: 85, max: 95 },
-        speedY: { min: 600, max: 900 },
-        speedX: { min: -20, max: 20 },
-        lifespan: 1500,
-        scale: { min: 0.8, max: 1.2 },
-        alpha: { min: 0.4, max: 0.8 },
-        emitting: false,
-      }),
+      rainEmitter: null as unknown as Phaser.GameObjects.Particles.ParticleEmitter,
       rainIntensity: 0,
 
       lightningFlash,
       nextLightning: 0,
     };
+
+    // Create rain emitter separately and configure it
+    const rainParticles = this.add.particles(0, 0, 'rain_drop', {
+      x: { min: 0, max: width },
+      y: -50,
+      quantity: 3,
+      frequency: 20,
+      angle: { min: 85, max: 95 },
+      speedY: { min: 600, max: 900 },
+      speedX: { min: -20, max: 20 },
+      lifespan: 1500,
+      scale: { min: 0.5, max: 0.8 },
+      alpha: { min: 0.5, max: 0.8 },
+      emitting: false,
+    });
+    rainParticles.setScrollFactor(0);
+    rainParticles.setDepth(1000);
+    this.weather.rainEmitter = rainParticles;
 
     // Bees group
     this.bees = this.physics.add.group({
@@ -552,8 +573,9 @@ export default class GameScene extends Phaser.Scene {
       const budgieSprite = budgie as Phaser.Physics.Arcade.Sprite;
       if (!budgieSprite.active) return;
 
-      beeSprite.destroy();
+      beeSprite.disableBody(true, true);
       this.incrementScore(10);
+      this.showFloatingText(budgieSprite.x, budgieSprite.y, '+10');
     });
 
     // Patriot hits bee -> Patriot dies!
@@ -563,37 +585,11 @@ export default class GameScene extends Phaser.Scene {
     const uiPadding = gameConfig.scorePadding;
     const panelHeight = 46;
 
-    // Budgie life panel (top-left)
-    this.add.rectangle(uiPadding, uiPadding, 180, panelHeight, 0x0b0f1c, 0.55)
-      .setOrigin(0, 0)
-      .setDepth(150)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0xffffff, 0.25);
-
-    this.budgieIndicators = [];
-    for (let i = 0; i < 4; i++) {
-      const indicator = this.add
-        .text(uiPadding + 22 + i * 34, uiPadding + panelHeight / 2, '🐦', {
-          fontSize: '22px',
-        })
-        .setDepth(151)
-        .setScrollFactor(0)
-        .setOrigin(0.5);
-      this.budgieIndicators.push(indicator);
-    }
-
-    // Score panel (top-right)
-    const scorePanelWidth = 210;
-    this.add.rectangle(width - uiPadding, uiPadding, scorePanelWidth, panelHeight, 0x101833, 0.65)
-      .setOrigin(1, 0)
-      .setDepth(150)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0xffffff, 0.25);
-
+    // Score text (top-right)
     this.scoreText = this.add
-      .text(width - uiPadding - 12, uiPadding + panelHeight / 2, 'Score: 0', {
+      .text(width - uiPadding, uiPadding + panelHeight / 2, 'Score: 0', {
         fontFamily: 'Arial Black',
-        fontSize: '20px',
+        fontSize: '24px',
         color: '#ffffff',
         stroke: '#000000',
         strokeThickness: 4,
@@ -603,10 +599,6 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(151)
       .setScrollFactor(0)
       .setOrigin(1, 0.5);
-
-    // Slight accent circles for HUD anchors
-    this.add.circle(uiPadding + 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
-    this.add.circle(width - uiPadding - 6, uiPadding + 6, 4, 0xffffff, 0.35).setDepth(152).setScrollFactor(0);
 
     // Start game music (wait for user interaction if audio is locked)
     this.gameMusic = this.sound.add('game_music', { loop: true, volume: 0.4 });
@@ -618,8 +610,9 @@ export default class GameScene extends Phaser.Scene {
       this.gameMusic.play();
     }
 
-    // Preload poof sound for consistent playback
-    this.poofSound = this.sound.add('poof_sound', { volume: 0.9 });
+    // Preload poof sound for consistent playback - HIGH volume for visibility
+    this.poofSound = this.sound.add('poof_sound', { volume: 2.0 });
+    this.dizzySound = this.sound.add('dizzy_sound', { volume: 0.8 });
 
     // Fade in
     this.cameras.main.fadeIn(500, 0, 0, 0);
@@ -890,14 +883,19 @@ export default class GameScene extends Phaser.Scene {
     falcon.setVisible(true);
     falcon.setTexture(`falcon_${variantKey}_1`); // Ensure correct texture if reused
 
+    // Re-enable physics body (critical for pooled sprites)
+    falcon.enableBody(true, width + 80, spawnY, true, true);
+
     falcon.setDepth(50);
     falcon.setScale(gameConfig.birdScale * 0.9);
     falcon.setFlipX(true);
     falcon.play(`falcon_${variantKey}_fly`);
     // Resize hitbox to match scaled sprite
-    const falconRadius = (falcon.width * gameConfig.birdScale * 0.9) * 0.4;
-    falcon.body?.setCircle(falconRadius);
-    falcon.body?.setOffset((falcon.width - falconRadius * 2) / 2, (falcon.height - falconRadius * 2) / 2);
+    const falconRadius = falcon.width * 0.4;
+    if (falcon.body) {
+      falcon.body.setCircle(falconRadius);
+      falcon.body.setOffset((falcon.width - falconRadius * 2) / 2, (falcon.height - falconRadius * 2) / 2);
+    }
 
     const speed = Phaser.Math.Between(180, 230);
 
@@ -1016,14 +1014,19 @@ export default class GameScene extends Phaser.Scene {
     bat.setActive(true);
     bat.setVisible(true);
 
+    // Re-enable physics body (critical for pooled sprites)
+    bat.enableBody(true, width + 80, spawnY, true, true);
+
     bat.setDepth(55);
     bat.setScale(gameConfig.birdScale * 0.8);
     bat.setFlipX(true);
     bat.play('bat_fly');
     // Resize hitbox to match scaled sprite
-    const batRadius = (bat.width * gameConfig.birdScale * 0.8) * 0.4;
-    bat.body?.setCircle(batRadius);
-    bat.body?.setOffset((bat.width - batRadius * 2) / 2, (bat.height - batRadius * 2) / 2);
+    const batRadius = bat.width * 0.4;
+    if (bat.body) {
+      bat.body.setCircle(batRadius);
+      bat.body.setOffset((bat.width - batRadius * 2) / 2, (bat.height - batRadius * 2) / 2);
+    }
 
     const speed = Phaser.Math.Between(160, 210);
 
@@ -1141,8 +1144,10 @@ export default class GameScene extends Phaser.Scene {
     // Destroy the bee
     bee.destroy();
 
-    // Patriot dies!
-    this.triggerGameOver();
+    // Patriot dies (unless invincible)
+    if (!this.isInvincible) {
+      this.triggerGameOver();
+    }
   }
 
   private handleFalconHitsBudgie(
@@ -1156,7 +1161,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Budgie getting hit should not award player points
     this.playEnemyExplosion(falcon, false);
-    this.markBudgieHit(budgie);
+    
+    // Only hurt budgie if not invincible
+    if (!this.isInvincible) {
+      this.markBudgieHit(budgie);
+    }
   }
 
   private handleBatHitsBudgie(
@@ -1170,7 +1179,11 @@ export default class GameScene extends Phaser.Scene {
 
     // Budgie getting hit should not award player points
     this.playEnemyExplosion(bat, false);
-    this.markBudgieHit(budgie);
+    
+    // Only hurt budgie if not invincible
+    if (!this.isInvincible) {
+      this.markBudgieHit(budgie);
+    }
   }
 
   private playEnemyExplosion(enemy: Phaser.Physics.Arcade.Sprite, givePoints: boolean = true): void {
@@ -1189,29 +1202,11 @@ export default class GameScene extends Phaser.Scene {
       });
 
       // Show floating score text
-      const floatingText = this.add.text(enemy.x, enemy.y - 20, '+25', {
-        fontFamily: 'Arial Black',
-        fontSize: '18px',
-        color: '#ffff00',
-        stroke: '#000000',
-        strokeThickness: 3,
-      }).setDepth(200);
-
-      this.tweens.add({
-        targets: floatingText,
-        y: enemy.y - 60,
-        alpha: 0,
-        duration: 800,
-        ease: 'Power2',
-        onComplete: () => floatingText.destroy(),
-      });
+      this.showFloatingText(enemy.x, enemy.y, '+25');
     }
 
-    // Play poof sound
-    if (this.poofSound) {
-      this.poofSound.stop();
-      this.poofSound.play();
-    }
+    // Play poof sound immediately using direct play (fastest method)
+    this.sound.play('poof_sound', { volume: 1.5 });
 
     // Create explosion sprite at enemy position
     const explosion = this.add.sprite(enemy.x, enemy.y, 'explode_1');
@@ -1235,17 +1230,6 @@ export default class GameScene extends Phaser.Scene {
 
     budgie.setData('isHit', true);
     budgie.setData('flashCount', 0);
-
-    // Update budgie indicator UI
-    const budgieIndex = this.budgies.indexOf(budgie);
-    if (budgieIndex >= 0 && this.budgieIndicators[budgieIndex]) {
-      this.budgieIndicators[budgieIndex].setText('💀');
-      this.tweens.add({
-        targets: this.budgieIndicators[budgieIndex],
-        scale: { from: 1.5, to: 1 },
-        duration: 200,
-      });
-    }
 
     // Switch to hit animation immediately
     budgie.play('budgie_hit');
@@ -1281,15 +1265,21 @@ export default class GameScene extends Phaser.Scene {
   private updateRain(delta: number, width: number, height: number): void {
     const w = this.weather;
 
-    if (w.rainIntensity <= 0.01) {
-      if (w.rainEmitter.emitting) {
-        w.rainEmitter.stop();
-      }
+    if (!w.rainEmitter) {
+      console.error('Rain emitter is null in updateRain!');
       return;
     }
 
+    if (w.rainIntensity <= 0.01) {
+      // Turn off rain
+      w.rainEmitter.emitting = false;
+      return;
+    }
+
+    // Turn on rain
     if (!w.rainEmitter.emitting) {
-      w.rainEmitter.start();
+      w.rainEmitter.emitting = true;
+      console.log('Rain turned ON! Intensity:', w.rainIntensity);
     }
 
     // Adjust frequency based on intensity (higher intensity = lower frequency value = more particles)
@@ -1298,8 +1288,8 @@ export default class GameScene extends Phaser.Scene {
     const freq = Phaser.Math.Linear(100, 10, w.rainIntensity);
     w.rainEmitter.setFrequency(freq);
 
-    // Also adjust alpha to fade in/out
-    w.rainEmitter.setAlpha({ min: 0.4 * w.rainIntensity, max: 0.8 * w.rainIntensity });
+    // Adjust particle alpha based on rain intensity
+    w.rainEmitter.setParticleAlpha(0.6 * w.rainIntensity + 0.4);
   }
 
   private updateLightning(delta: number): void {
@@ -1331,7 +1321,9 @@ export default class GameScene extends Phaser.Scene {
 
   private clearRain(): void {
     const w = this.weather;
-    w.rainEmitter.stop();
+    if (w.rainEmitter) {
+      w.rainEmitter.emitting = false;
+    }
   }
 
   private setOverlay(alpha: number, color: number): void {
@@ -1354,14 +1346,20 @@ export default class GameScene extends Phaser.Scene {
 
     bee.setActive(true);
     bee.setVisible(true);
+
+    // Re-enable physics body (critical for pooled sprites)
+    bee.enableBody(true, spawnX, spawnY, true, true);
+
     bee.setScale(gameConfig.beeScale);
     bee.setFlipX(true); // Flip to face left
     bee.setDepth(60);
     bee.play('bee_fly');
     // Resize hitbox to match scaled sprite
-    const beeRadius = (bee.width * gameConfig.beeScale) * 0.4;
-    bee.body?.setCircle(beeRadius);
-    bee.body?.setOffset((bee.width - beeRadius * 2) / 2, (bee.height - beeRadius * 2) / 2);
+    const beeRadius = bee.width * 0.4;
+    if (bee.body) {
+      bee.body.setCircle(beeRadius);
+      bee.body.setOffset((bee.width - beeRadius * 2) / 2, (bee.height - beeRadius * 2) / 2);
+    }
 
     // Move left towards budgies, speeding up over time
     bee.setVelocityX(-this.beeSpeed);
@@ -1396,10 +1394,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Play dizzy/spin sound effect
-    try {
-      this.sound.play('dizzy_sound', { volume: 0.6 });
-    } catch (e) {
-      console.warn('Could not play dizzy sound:', e);
+    if (this.dizzySound) {
+      this.dizzySound.play();
     }
 
     // Stop player movement and play dizzy animation
@@ -1435,20 +1431,32 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private showTouchFeedback(zone: 'top' | 'bottom'): void {
-    const target = zone === 'top' ? this.touchZoneTop : this.touchZoneBottom;
-    const other = zone === 'top' ? this.touchZoneBottom : this.touchZoneTop;
-
-    // Reset other zone
-    other.setAlpha(0);
-
-    // Flash the target zone
-    target.setAlpha(0.1);
-    target.setFillStyle(0xffffff);
+    // Disable touch feedback visual - it was causing white flashes
+    // Keep the function for potential future use with a more subtle effect
   }
 
   private hideTouchFeedback(): void {
     this.touchZoneTop.setAlpha(0);
     this.touchZoneBottom.setAlpha(0);
+  }
+
+  private showFloatingText(x: number, y: number, text: string, color: string = '#ffff00'): void {
+    const floatingText = this.add.text(x, y - 20, text, {
+      fontFamily: 'Arial Black',
+      fontSize: '18px',
+      color: color,
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setDepth(200);
+
+    this.tweens.add({
+      targets: floatingText,
+      y: y - 60,
+      alpha: 0,
+      duration: 800,
+      ease: 'Power2',
+      onComplete: () => floatingText.destroy(),
+    });
   }
 
 }

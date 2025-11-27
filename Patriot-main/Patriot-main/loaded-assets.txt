@@ -1,0 +1,63 @@
+animations/Budgie got hit/frame-1.png
+animations/Budgie got hit/frame-2.png
+animations/Explode/a1.png
+animations/Explode/a2.png
+animations/Explode/a3.png
+animations/Explode/a4.png
+animations/Explode/a5.png
+assets/AttackBirds/Bird A/frame-1.png
+assets/AttackBirds/Bird A/frame-2.png
+assets/AttackBirds/Bird A/frame-3.png
+assets/AttackBirds/Bird A/frame-4.png
+assets/AttackBirds/Bird B/frame-1.png
+assets/AttackBirds/Bird B/frame-2.png
+assets/AttackBirds/Bird B/frame-3.png
+assets/AttackBirds/Bird B/frame-4.png
+assets/AttackBirds/Bird C/frame-1.png
+assets/AttackBirds/Bird C/frame-2.png
+assets/AttackBirds/Bird C/frame-3.png
+assets/AttackBirds/Bird C/frame-4.png
+assets/AttackBirds/Bird D/frame-1.png
+assets/AttackBirds/Bird D/frame-2.png
+assets/AttackBirds/Bird D/frame-3.png
+assets/AttackBirds/Bird D/frame-4.png
+assets/backgrounds/layer-1.png
+assets/backgrounds/layer-2.png
+assets/backgrounds/layer-3.png
+assets/backgrounds/layer-4.png
+assets/backgrounds/layer-5.png
+assets/backgrounds/layer-6.png
+assets/bat/frame-1.png
+assets/bat/frame-2.png
+assets/bat/frame-3.png
+assets/bat/frame-4.png
+assets/bat/frame-5.png
+assets/bat/frame-6.png
+assets/bat/frame-7.png
+assets/bat/frame-8.png
+assets/Bee/frame-1.png
+assets/Bee/frame-2.png
+assets/budgie/frame-1.png
+assets/budgie/frame-2.png
+assets/budgie/frame-3.png
+assets/budgie/frame-4.png
+assets/player/Dizzy/frame-1.png
+assets/player/Dizzy/frame-2.png
+assets/player/Dizzy/frame-3.png
+assets/player/Dizzy/frame-4.png
+assets/player/Dizzy/frame-5.png
+assets/player/Dizzy/frame-6.png
+assets/player/Dizzy/frame-7.png
+assets/player/Dizzy/frame-8.png
+assets/player/Faint/frame-1.png
+assets/player/Faint/frame-2.png
+assets/player/Faint/frame-3.png
+assets/player/Faint/frame-4.png
+assets/player/flying-1.png
+assets/player/flying-2.png
+assets/player/flying-3.png
+assets/player/flying-4.png
+assets/scenes/gameOver/gameOver.png
+assets/scenes/instructions/instructions.png
+assets/scenes/mainMenu/mainMenu.jpg
+assets/scenes/mainMenu/scoreScreen.png

@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { App } from '@capacitor/app';
+import { Device } from '@capacitor/device';
 
 export default class MainMenuScene extends Phaser.Scene {
   private titleText!: Phaser.GameObjects.Text;
@@ -14,7 +16,10 @@ export default class MainMenuScene extends Phaser.Scene {
   preload(): void {
     // Main menu assets
     this.load.image('menu_bg', 'assets/scenes/mainMenu/mainMenu.jpg');
-    this.load.audio('menu_music', 'assets/music/titleScreen/maxkomusic-true-patriot.ogg');
+    this.load.audio('menu_music', [
+      'assets/music/titleScreen/maxkomusic-true-patriot.mp3',
+      'assets/music/titleScreen/maxkomusic-true-patriot.ogg'
+    ]);
     
     // Eagle for animation
     this.load.image('player_fly_1', 'assets/player/flying-1.png');
@@ -26,7 +31,10 @@ export default class MainMenuScene extends Phaser.Scene {
     this.load.image('star', 'assets/player/flying-1.png');
 
     // Button click sound
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
+    this.load.audio('click_sound', [
+      'assets/music/mouse-click-290204.mp3',
+      'assets/music/mouse-click-290204.ogg'
+    ]);
   }
 
   create(): void {
@@ -133,9 +141,53 @@ export default class MainMenuScene extends Phaser.Scene {
       this.scene.start('ScoreScene');
     });
 
-    this.createPolishedButton(width / 2, buttonY + buttonSpacing * 3, 'QUIT', 0x880000, 0xcc2222, () => {
-      // Show a message since browsers block window.close()
-      const quitText = this.add.text(width / 2, height / 2, 'Please close the browser tab to quit', {
+    this.createPolishedButton(width / 2, buttonY + buttonSpacing * 3, 'QUIT', 0x880000, 0xcc2222, async () => {
+      // iOS App Store rejects programmatic exits - show message instead
+      // Android allows App.exitApp()
+      
+      if ((window as any).Capacitor) {
+        try {
+          const info = await Device.getInfo();
+          
+          if (info.platform === 'ios') {
+            // iOS - show message (programmatic exit disallowed by Apple)
+            const quitText = this.add.text(width / 2, height / 2, 'Press home button to exit', {
+              fontFamily: 'Arial Black',
+              fontSize: '24px',
+              color: '#FFFFFF',
+              stroke: '#000000',
+              strokeThickness: 4,
+              backgroundColor: '#000000AA',
+              padding: { x: 20, y: 10 }
+            }).setOrigin(0.5).setDepth(1000);
+            
+            this.tweens.add({
+              targets: quitText,
+              alpha: 0,
+              duration: 3000,
+              delay: 2000,
+              onComplete: () => quitText.destroy()
+            });
+          } else {
+            // Android - allowed to exit
+            App.exitApp();
+          }
+        } catch (err) {
+          console.error('Error detecting platform:', err);
+          // Fallback to exit attempt
+          App.exitApp();
+        }
+        return;
+      }
+      
+      // Try Cordova exit (Android)
+      if ((window as any).cordova && (window as any).navigator?.app) {
+        (window as any).navigator.app.exitApp();
+        return;
+      }
+      
+      // Web fallback - show message
+      const quitText = this.add.text(width / 2, height / 2, 'Press back button or home to exit', {
         fontFamily: 'Arial Black',
         fontSize: '24px',
         color: '#FFFFFF',

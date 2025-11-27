@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Patriot</string>
+    <string name="title_activity_main">Patriot</string>
+    <string name="package_name">com.arcticfoxgames.patriot</string>
+    <string name="custom_url_scheme">com.arcticfoxgames.patriot</string>
+</resources>

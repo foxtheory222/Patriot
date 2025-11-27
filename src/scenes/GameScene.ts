@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { telemetry } from '../telemetry';
 
 // Tuned game constants
 const gameConfig = {
@@ -193,6 +194,11 @@ export default class GameScene extends Phaser.Scene {
     this.budgies = [];
     this.enemiesDefeated = 0;
     this.startTime = Date.now();
+
+    telemetry.recordEvent('game_session_start', {
+      startTime: this.startTime,
+      scene: this.scene.key,
+    });
 
     // === Parallax background layers ===
     const layerKeys = ['bg1', 'bg2', 'bg3', 'bg4', 'bg5', 'bg6'];
@@ -1092,6 +1098,11 @@ export default class GameScene extends Phaser.Scene {
     if (givePoints) {
       this.incrementScore(25);
       this.enemiesDefeated++;
+
+      telemetry.recordEvent('enemy_defeated', {
+        enemyTexture: enemy.texture.key,
+        score: this.score,
+      });
       
       // Show floating score text
       const floatingText = this.add.text(enemy.x, enemy.y - 20, '+25', {
@@ -1335,11 +1346,17 @@ export default class GameScene extends Phaser.Scene {
       // After faint animation, fade out and go to game over
       this.player.once('animationcomplete', () => {
         this.cameras.main.fadeOut(800, 0, 0, 0);
-        
+
         this.time.delayedCall(800, () => {
           const survivalTime = Math.floor((Date.now() - this.startTime) / 1000);
           const budgiesSaved = this.aliveBudgiesCache.length;
-          this.scene.start('GameOverScene', { 
+          telemetry.recordEvent('game_over', {
+            score: this.score,
+            enemiesDefeated: this.enemiesDefeated,
+            survivalTime,
+            budgiesSaved,
+          });
+          this.scene.start('GameOverScene', {
             score: this.score,
             enemiesDefeated: this.enemiesDefeated,
             survivalTime: survivalTime,

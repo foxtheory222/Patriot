@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Patriot</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #1a1a2e;
+        font-family: Arial, sans-serif;
+        color: #fff;
+      }
+      #settings-btn {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 100;
+        background: #ff9800;
+        color: #000;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      #settings-btn:hover {
+        background: #ffc107;
+      }
+      #night-btn {
+        position: fixed;
+        top: 10px;
+        right: 120px;
+        z-index: 100;
+        background: #3f51b5;
+        color: #fff;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      #night-btn:hover {
+        background: #5c6bc0;
+      }
+      #night-btn.active {
+        background: #1a237e;
+      }
+      #app {
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="night-btn" onclick="toggleNight()">🌙 Night</button>
+    <button id="settings-btn" onclick="openSettings()">⚙️ Settings</button>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+    <script>
+      let settingsWindow = null;
+      
+      function toggleNight() {
+        if (window.triggerNightMode) {
+          window.triggerNightMode();
+          const btn = document.getElementById('night-btn');
+          btn.classList.toggle('active');
+        }
+      }
+      
+      function openSettings() {
+        if (settingsWindow && !settingsWindow.closed) {
+          settingsWindow.focus();
+          return;
+        }
+        
+        settingsWindow = window.open('', 'PatriotSettings', 'width=500,height=700,left=100,top=100');
+        settingsWindow.document.write(getSettingsHTML());
+        settingsWindow.document.close();
+        
+        // Setup controls in popup
+        setupPopupControls(settingsWindow);
+      }
+      
+      function getSettingsHTML() {
+        return `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Patriot Settings</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 15px;
+      background: #1a1a2e;
+      font-family: Arial, sans-serif;
+      color: #fff;
+    }
+    h1 {
+      margin: 0 0 15px 0;
+      font-size: 18px;
+      color: #ff9800;
+    }
+    .section {
+      margin-bottom: 15px;
+      padding: 12px;
+      background: #16213e;
+      border-radius: 8px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #ff9800;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 6px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .control-group label {
+      width: 120px;
+      font-size: 12px;
+      color: #a0a0a0;
+    }
+    .control-group input[type="range"] {
+      flex: 1;
+    }
+    .control-group .value {
+      width: 50px;
+      font-size: 12px;
+      color: #4fc3f7;
+      font-weight: bold;
+      text-align: right;
+    }
+    #config-display {
+      background: #0d1520;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 11px;
+      white-space: pre;
+      color: #8bc34a;
+      border: 1px solid #333;
+      margin-top: 15px;
+    }
+    #config-display .title {
+      color: #ff9800;
+      font-weight: bold;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    #copy-btn {
+      margin-top: 10px;
+      background: #4fc3f7;
+      color: #000;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #copy-btn:hover {
+      background: #81d4fa;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚙️ Patriot Game Settings</h1>
+  
+  <!-- Background Controls -->
+  <div class="section">
+    <div class="section-title">🌄 Background</div>
+    <div class="control-group">
+      <label>Scroll Speed</label>
+      <input type="range" id="bgSpeed" min="0.01" max="0.5" step="0.005" value="0.36">
+      <span class="value" id="bgSpeedVal">0.36</span>
+    </div>
+    <div class="control-group">
+      <label>Ground Level %</label>
+      <input type="range" id="groundLevel" min="0.5" max="0.95" step="0.01" value="0.85">
+      <span class="value" id="groundLevelVal">0.85</span>
+    </div>
+  </div>
+
+  <!-- Patriot Controls -->
+  <div class="section">
+    <div class="section-title">🦅 Patriot (Eagle)</div>
+    <div class="control-group">
+      <label>Scale</label>
+      <input type="range" id="birdScale" min="0.03" max="0.25" step="0.01" value="0.07">
+      <span class="value" id="birdScaleVal">0.07</span>
+    </div>
+    <div class="control-group">
+      <label>X Position</label>
+      <input type="range" id="patriotX" min="50" max="500" step="10" value="200">
+      <span class="value" id="patriotXVal">200</span>
+    </div>
+    <div class="control-group">
+      <label>Y Position %</label>
+      <input type="range" id="patriotY" min="0.2" max="0.8" step="0.05" value="0.4">
+      <span class="value" id="patriotYVal">0.4</span>
+    </div>
+    <div class="control-group">
+      <label>Move Speed</label>
+      <input type="range" id="moveSpeed" min="100" max="1000" step="10" value="280">
+      <span class="value" id="moveSpeedVal">280</span>
+    </div>
+    <div class="control-group">
+      <label>Gravity Speed</label>
+      <input type="range" id="gravitySpeed" min="20" max="500" step="10" value="110">
+      <span class="value" id="gravitySpeedVal">110</span>
+    </div>
+    <div class="control-group">
+      <label>Max Tilt°</label>
+      <input type="range" id="maxTilt" min="0" max="45" step="1" value="9">
+      <span class="value" id="maxTiltVal">9</span>
+    </div>
+    <div class="control-group">
+      <label>Anim FPS</label>
+      <input type="range" id="animFps" min="2" max="30" step="1" value="13">
+      <span class="value" id="animFpsVal">13</span>
+    </div>
+  </div>
+
+  <!-- Budgie Controls -->
+  <div class="section">
+    <div class="section-title">🐤 Budgies</div>
+    <div class="control-group">
+      <label>Scale</label>
+      <input type="range" id="budgieScale" min="0.01" max="0.1" step="0.005" value="0.02">
+      <span class="value" id="budgieScaleVal">0.02</span>
+    </div>
+    <div class="control-group">
+      <label>Spacing</label>
+      <input type="range" id="budgieSpacing" min="20" max="200" step="5" value="125">
+      <span class="value" id="budgieSpacingVal">125</span>
+    </div>
+    <div class="control-group">
+      <label>X Position</label>
+      <input type="range" id="budgieX" min="30" max="300" step="5" value="60">
+      <span class="value" id="budgieXVal">60</span>
+    </div>
+    <div class="control-group">
+      <label>Y Position %</label>
+      <input type="range" id="budgieY" min="0.2" max="0.8" step="0.05" value="0.4">
+      <span class="value" id="budgieYVal">0.4</span>
+    </div>
+  </div>
+
+  <!-- Bee Controls -->
+  <div class="section">
+    <div class="section-title">🐝 Bees</div>
+    <div class="control-group">
+      <label>Scale</label>
+      <input type="range" id="beeScale" min="0.01" max="0.2" step="0.005" value="0.025">
+      <span class="value" id="beeScaleVal">0.025</span>
+    </div>
+  </div>
+
+  <!-- Score Controls -->
+  <div class="section">
+    <div class="section-title">🏆 Score</div>
+    <div class="control-group">
+      <label>X Position</label>
+      <input type="range" id="scoreX" min="0" max="1000" step="5" value="900">
+      <span class="value" id="scoreXVal">900</span>
+    </div>
+    <div class="control-group">
+      <label>Y Position</label>
+      <input type="range" id="scoreY" min="0" max="500" step="5" value="12">
+      <span class="value" id="scoreYVal">12</span>
+    </div>
+  </div>
+
+  <!-- Config Display -->
+  <div id="config-display">
+    <div class="title">📋 Current Config (copy me!)</div>
+    <div id="config-text"></div>
+  </div>
+  <button id="copy-btn" onclick="copyConfig()">📋 Copy to Clipboard</button>
+</body>
+</html>`;
+      }
+      
+      function setupPopupControls(popup) {
+        const sliderIds = [
+          'bgSpeed', 'moveSpeed', 'gravitySpeed', 'animFps', 'birdScale',
+          'maxTilt', 'groundLevel', 'patriotX', 'patriotY', 'budgieScale', 'budgieSpacing', 'budgieX', 'budgieY',
+          'beeScale', 'scoreX', 'scoreY'
+        ];
+        
+        // Wait for game config to be available
+        const checkConfig = setInterval(() => {
+          if (!window.gameConfig) return;
+          clearInterval(checkConfig);
+          
+          const config = window.gameConfig;
+          
+          // Initialize sliders with current values
+          sliderIds.forEach(id => {
+            const slider = popup.document.getElementById(id);
+            const valDisplay = popup.document.getElementById(id + 'Val');
+            if (slider && config[id] !== undefined) {
+              slider.value = config[id];
+              if (valDisplay) valDisplay.textContent = config[id];
+              
+              slider.addEventListener('input', () => {
+                const val = parseFloat(slider.value);
+                config[id] = val;
+                if (valDisplay) valDisplay.textContent = val;
+                updatePopupConfigDisplay(popup, config);
+              });
+            }
+          });
+          
+          updatePopupConfigDisplay(popup, config);
+        }, 100);
+        
+        // Copy button
+        popup.copyConfig = function() {
+          const text = popup.document.getElementById('config-text').textContent;
+          navigator.clipboard.writeText(text).then(() => {
+            popup.document.getElementById('copy-btn').textContent = '✅ Copied!';
+            setTimeout(() => {
+              popup.document.getElementById('copy-btn').textContent = '📋 Copy to Clipboard';
+            }, 2000);
+          });
+        };
+      }
+      
+      function updatePopupConfigDisplay(popup, config) {
+        const text = `{
+  bgSpeed: ${config.bgSpeed},
+  moveSpeed: ${config.moveSpeed},
+  gravitySpeed: ${config.gravitySpeed},
+  animFps: ${config.animFps},
+  birdScale: ${config.birdScale},
+  maxTilt: ${config.maxTilt},
+  groundLevel: ${config.groundLevel},
+  patriotX: ${config.patriotX},
+  patriotY: ${config.patriotY},
+  budgieScale: ${config.budgieScale},
+  budgieSpacing: ${config.budgieSpacing},
+  budgieX: ${config.budgieX},
+  budgieY: ${config.budgieY},
+  beeScale: ${config.beeScale},
+  scoreX: ${config.scoreX},
+  scoreY: ${config.scoreY},
+}`;
+        const el = popup.document.getElementById('config-text');
+        if (el) el.textContent = text;
+      }
+    </script>
+  </body>
+</html>

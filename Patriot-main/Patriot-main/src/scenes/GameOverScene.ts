@@ -20,8 +20,8 @@ export default class GameOverScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('gameover_bg', 'assets/scenes/gameOver/gameOver.png');
-    this.load.audio('gameover_music', 'assets/music/hiScore/sad_game_over.wav');
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.mp3');
+    this.load.audio('gameover_music', 'assets/music/hiScore/sad_game_over.ogg');
+    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
   }
 
   create(): void {
@@ -102,7 +102,7 @@ export default class GameOverScene extends Phaser.Scene {
     const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
     
     const statsText = this.add.text(width / 2, statsY, 
-      `⏱️ Survived: ${timeStr}   |   🦅 Enemies Defeated: ${this.enemiesDefeated}   |   🐦 Budgies Saved: ${this.budgiesSaved}/4`,
+      `TIME: ${timeStr}   |   ENEMIES: ${this.enemiesDefeated}   |   BUDGIES SAVED: ${this.budgiesSaved}/4`,
       statsStyle
     );
     statsText.setOrigin(0.5);
@@ -121,7 +121,7 @@ export default class GameOverScene extends Phaser.Scene {
     const isNewHighScore = this.checkHighScore(this.finalScore);
     if (isNewHighScore) {
       this.time.delayedCall(2500, () => {
-        const newHighText = this.add.text(width / 2, height * 0.76, '🎉 NEW HIGH SCORE! 🎉', {
+        const newHighText = this.add.text(width / 2, height * 0.76, '*** NEW HIGH SCORE! ***', {
           fontFamily: 'Arial Black',
           fontSize: '28px',
           color: '#00FF00',

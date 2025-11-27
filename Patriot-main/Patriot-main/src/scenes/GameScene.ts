@@ -81,6 +81,10 @@ export default class GameScene extends Phaser.Scene {
   private startTime = 0; // Track game start time
   private poofSound!: Phaser.Sound.BaseSound;
 
+  // Touch feedback
+  private touchZoneTop!: Phaser.GameObjects.Rectangle;
+  private touchZoneBottom!: Phaser.GameObjects.Rectangle;
+
   constructor() {
     super('GameScene');
   }
@@ -175,9 +179,8 @@ export default class GameScene extends Phaser.Scene {
     this.load.audio('game_music', 'assets/music/gameMusic/xenostar2loop_.ogg');
 
     // Sound effects
-    this.load.audio('poof_sound', 'assets/music/poof-80161.mp3');
-    this.load.audio('poof_sound', 'assets/music/poof-80161.mp3');
-    this.load.audio('dizzy_sound', 'assets/music/cartoon-spin-7120.mp3');
+    this.load.audio('poof_sound', 'assets/music/poof-80161.ogg');
+    this.load.audio('dizzy_sound', 'assets/music/cartoon-spin-7120.ogg');
 
     // Generate rain texture
     const graphics = this.make.graphics({ x: 0, y: 0, add: false });
@@ -470,14 +473,28 @@ export default class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.y < height / 2) {
         this.player.setData('targetDirection', -1);
+        this.showTouchFeedback('top');
       } else {
         this.player.setData('targetDirection', 1);
+        this.showTouchFeedback('bottom');
       }
     });
 
     this.input.on('pointerup', () => {
       this.player.setData('targetDirection', 0);
+      this.hideTouchFeedback();
     });
+
+    // === Touch Feedback Visuals ===
+    // Top zone (fly up)
+    this.touchZoneTop = this.add.rectangle(width / 2, height / 4, width, height / 2, 0xffffff, 0);
+    this.touchZoneTop.setDepth(140);
+    this.touchZoneTop.setScrollFactor(0);
+
+    // Bottom zone (fly down)
+    this.touchZoneBottom = this.add.rectangle(width / 2, (height / 4) * 3, width, height / 2, 0xffffff, 0);
+    this.touchZoneBottom.setDepth(140);
+    this.touchZoneBottom.setScrollFactor(0);
 
     // === Night / weather overlay ===
     this.nightOverlay = this.add.rectangle(width / 2, height / 2, width, height, this.overlayBaseColor, 0);
@@ -500,9 +517,6 @@ export default class GameScene extends Phaser.Scene {
       nightDuration: 20000,
       stormDuration: 12000,
       dawnDuration: 5000,
-
-      darkness: 0,
-      overlay: this.nightOverlay,
 
       darkness: 0,
       overlay: this.nightOverlay,
@@ -616,6 +630,9 @@ export default class GameScene extends Phaser.Scene {
       loop: true,
       callback: () => this.spawnBee(),
     });
+
+    // Ensure physics is resumed (in case it was paused from previous game over)
+    this.physics.resume();
 
     // Register shutdown handler
     this.events.on('shutdown', this.shutdown, this);
@@ -1371,7 +1388,7 @@ export default class GameScene extends Phaser.Scene {
     this.time.removeAllEvents();
 
     // Disable all collision overlaps to prevent score changes
-    this.physics.world.colliders.destroy();
+    this.physics.world.colliders.removeAll();
 
     // Stop the game music
     if (this.gameMusic) {
@@ -1415,6 +1432,23 @@ export default class GameScene extends Phaser.Scene {
         });
       });
     });
+  }
+
+  private showTouchFeedback(zone: 'top' | 'bottom'): void {
+    const target = zone === 'top' ? this.touchZoneTop : this.touchZoneBottom;
+    const other = zone === 'top' ? this.touchZoneBottom : this.touchZoneTop;
+
+    // Reset other zone
+    other.setAlpha(0);
+
+    // Flash the target zone
+    target.setAlpha(0.1);
+    target.setFillStyle(0xffffff);
+  }
+
+  private hideTouchFeedback(): void {
+    this.touchZoneTop.setAlpha(0);
+    this.touchZoneBottom.setAlpha(0);
   }
 
 }

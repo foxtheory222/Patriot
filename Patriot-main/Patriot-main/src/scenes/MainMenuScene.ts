@@ -14,7 +14,7 @@ export default class MainMenuScene extends Phaser.Scene {
   preload(): void {
     // Main menu assets
     this.load.image('menu_bg', 'assets/scenes/mainMenu/mainMenu.jpg');
-    this.load.audio('menu_music', 'assets/music/titleScreen/maxkomusic-true-patriot.mp3');
+    this.load.audio('menu_music', 'assets/music/titleScreen/maxkomusic-true-patriot.ogg');
     
     // Eagle for animation
     this.load.image('player_fly_1', 'assets/player/flying-1.png');
@@ -26,7 +26,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.load.image('star', 'assets/player/flying-1.png');
 
     // Button click sound
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.mp3');
+    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
   }
 
   create(): void {

@@ -9,13 +9,16 @@
     "preview": "vite preview",
     "test": "npm run test:compile && node --test .tmp-tests/tests/telemetry.test.js",
     "test:compile": "tsc --project tsconfig.test.json",
-    "optimize:images": "imagemin public/assets/**/*.png --out-dir=public/assets --plugin=pngquant"
+    "optimize:images": "imagemin public/assets/**/*.png --out-dir=public/assets --plugin=pngquant",
+    "optimize:audio": "node optimize-audio.cjs"
   },
   "dependencies": {
     "phaser": "^3.87.0"
   },
   "devDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@types/node": "^22.9.0",
+    "ffmpeg-static": "^5.3.0",
     "imagemin-cli": "^8.0.0",
     "imagemin-pngquant": "^10.0.0",
     "typescript": "^5.6.3",

@@ -9,10 +9,10 @@ export default class ScoreScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('score_bg', 'assets/scenes/mainMenu/scoreScreen.png');
-    this.load.audio('score_music', 'assets/music/hiScore/sad_game_over.wav');
+    this.load.audio('score_music', 'assets/music/hiScore/sad_game_over.ogg');
 
     // Button click sound
-    this.load.audio('click_sound', 'assets/music/mouse-click-290204.mp3');
+    this.load.audio('click_sound', 'assets/music/mouse-click-290204.ogg');
   }
 
   create(): void {
